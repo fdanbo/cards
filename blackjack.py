@@ -80,18 +80,22 @@ class bjhand:
       return (len(self.cards_) == 2 and
               cardvalue(self.cards_[0]) == cardvalue(self.cards_[1]))
 
-class playerhand:
-  def __init__(self, bet, strategy):
+
+class playerstate:
+  def __init__(self, strategy):
     self.strategy_ = strategy
-    self.settled_ = False
-    self.bet_ = bet
-    self.hand_ = bjhand()
+    self.balance_ = 0.0
 
   def __repr__(self):
     return str(self.balance_)
 
-  def addcard(self, card):
-    self.hand_.hit(card)
+  def startNewHand(self, bet):
+    self.hand_ = bjhand()
+    self.settled_ = False
+    self.bet_ = bet
+
+  def hand(self):
+    return self.hand_
 
   def chooseMove(self, dealerUpCard):
     section = self.strategy_[cardvalue(dealerUpCard)]
@@ -103,40 +107,25 @@ class playerhand:
         return move
     return 'stand'
 
-  def double(self, card):
-    self.hand_.hit(card)
-    self.hand_.stand()
-    self.betAmount_ *= 2
-
-
-class playerstate:
-  def __init__(self, strategy):
-    self.strategy_ = strategy
-    self.balance_ = 0.0
-
-  def __repr__(self):
-    return str(self.balance_)
-
-  def startNewHand(self, bet):
-    self.hands_ = [bjhand(bet, self.strategy)]
-
-  def handiter(self):
-    return iter(self.hands_)
-
   def win(self):
-    self.balance_ += self.betAmount_
+    self.balance_ += self.bet_
     self.settled_ = True
 
   def bjwin(self):
-    self.balance_ += 1.5*self.betAmount_
+    self.balance_ += 1.5*self.bet_
     self.settled_ = True
 
   def lose(self):
-    self.balance_ -= self.betAmount_
+    self.balance_ -= self.bet_
     self.settled_ = True
 
+  def double(self, card):
+    self.hand_.hit(card)
+    self.hand_.stand()
+    self.bet_ *= 2
+
   def surrender(self):
-    self.balance_ -= (self.betAmount_ / 2.0)
+    self.balance_ -= (self.bet_ / 2.0)
     self.settled_ = True
 
   def push(self):
@@ -166,12 +155,11 @@ class table:
       s.startNewHand(BET_AMOUNT)
     self.dealerHand = bjhand()
 
-    # first give one card to each of the players, give face-up card to dealer, then give another
-    # card to each of the players, then give face-down card to dealer
-    for s in self.playerStates: s.hand().hit(self.deck.dealone())
-    self.dealerHand.hit(self.deck.dealone())
-    for s in self.playerStates: s.hand().hit(self.deck.dealone())
-    self.dealerHand.hit(self.deck.dealone())
+    # deal two cards to everyone
+    for i in range(2):
+      for s in self.playerStates:
+        s.hand().hit(self.deck.dealone())
+      self.dealerHand.hit(self.deck.dealone())
 
     # now have everyone play their hands. this settles hands that busted, got blackjack, or lost to
     # a blackjack.
@@ -237,15 +225,21 @@ class table:
     logging.debug(self.dealerHand)
 
 
-if __name__ == '__main__':
-  N = 100000
-  print('playing {} hands...'.format(N))
-
-  # 8 decks, 8 players
-  mytable = table(8)
-  mytable.setPlayers([bjstrategies.S1 for x in range(8)])
-
-  for i in range(N):
+def runtest(deckCount, playerCount, handCount,
+            loggingLevel=logging.WARNING):
+  # just play one hand, printing details
+  logging.basicConfig(level=loggingLevel)
+  mytable = table(deckCount)
+  mytable.setPlayers([bjstrategies.S1 for x in range(playerCount)])
+  for i in range(handCount):
     mytable.playHand()
+  print('balances: {}'.format(mytable))
 
-  print 'balances: {}'.format(mytable)
+def test1():
+  runtest(8, 8, 1, logging.DEBUG)
+
+def test2():
+  runtest(8, 8, 10000)
+
+if __name__ == '__main__':
+  test2()
