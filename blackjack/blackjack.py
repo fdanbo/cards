@@ -3,6 +3,7 @@ import cards
 from . import bjstrategies
 from .bjhand import bjhand
 from .bjplayerhand import bjplayerhand
+from .bjsql import bjplay
 
 import logging
 
@@ -42,26 +43,43 @@ class playerstate:
         # blackjack after a split -- ace-ten after a split is just a normal 21.
         currentHand.settleBlackjack()
 
-        # we're setting this to true even though we may have more than 2 cards -- really this
-        # boolean means "this hand was not just split".  having 2 cards is checked later, in
-        # canMakeMove().
+        # surrender is allowed because we just started this hand and didn't come out of a split
         surrenderAllowed = True
 
       splitResult = None
-      while not currentHand.closed:
-        # enforce only splitting to four hands
-        handCount = len(handsToPlay) + len(self.hands_) + 1
-        splitAllowed = handCount < 4
-        move = self.chooseMove(currentHand, dealerUpCard,
-                               splitAllowed, surrenderAllowed)
-        splitResult = currentHand.makeMove(move, deck)
-        if splitResult is not None:
-          # we split
-          handsToPlay.append(splitResult[0])
-          handsToPlay.append(splitResult[1])
-          break
+
+      if currentHand.closed:
+        # no moves to make, just log the object in the database.  this happens on blackjack and
+        # after splitting aces.
+        currentHand.checkpointToDB(dealerCard=dealerUpCard,
+                                   move=None,
+                                   canSplit=False,
+                                   canSurrender=False)
+      else:
+        # play the hand
+        while not currentHand.closed:
+          # enforce only splitting to four hands
+          handCount = len(handsToPlay) + len(self.hands_) + 1
+          splitAllowed = handCount < 4
+          move = self.chooseMove(currentHand, dealerUpCard,
+                                 splitAllowed, surrenderAllowed)
+
+          # log the move for this hand. we don't save them until everything is settled, so that we can
+          # record the result.
+          currentHand.checkpointToDB(dealerCard=dealerUpCard,
+                                     move=move,
+                                     canSplit=splitAllowed,
+                                     canSurrender=surrenderAllowed)
+
+          splitResult = currentHand.makeMove(move, deck)
+          if splitResult is not None:
+            # we split
+            handsToPlay.append(splitResult[0])
+            handsToPlay.append(splitResult[1])
+            break
 
       if splitResult is None:
+        # we finished playing the hand -- print it out
         logging.debug(currentHand.hand)
         self.hands_.append(currentHand)
         if currentHand.settled:
@@ -161,6 +179,7 @@ def splittest(deckCount, playerCount, handCount,
             loggingLevel=logging.WARNING):
   # just play one hand, printing details
   logging.basicConfig(level=loggingLevel)
+  bjplay.createDatabase('splittest.db')
   mytable = table(deckCount)
   mytable.setPlayers([bjstrategies.MISTER_SPLITTER for x in range(playerCount)])
   for i in range(handCount):
