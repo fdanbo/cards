@@ -24,7 +24,7 @@ class bjplayerhand:
     elif v == 21:
       self.closed = True
 
-  def canMakeMove(self, move):
+  def canMakeMove(self, move, splitAllowed, surrenderAllowed):
     if move == 'stand':
       return True
     if move == 'hit':
@@ -34,12 +34,18 @@ class bjplayerhand:
     if self.hand.cardCount() != 2:
       return False
 
-    if move == 'double' or move == 'surrender':
-      # any two cards is fine
+    if move == 'double':
+      # any two cards can be doubled
       return True
 
+    if move == 'surrender':
+      # surrender is disallowed only after a split
+      return surrenderAllowed
+
     if move == 'split':
-      # can only split cards with the same value
+      # if we already have 4 hands, splitAllowed will be false.  otherwise, the card values must be
+      # the same.
+      if not splitAllowed: return False
       v1 = bjhand.cardvalue(self.hand.firstCard())
       v2 = bjhand.cardvalue(self.hand.secondCard())
       return v1 == v2

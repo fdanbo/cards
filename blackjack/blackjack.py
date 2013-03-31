@@ -1,4 +1,3 @@
-#!/usr/local/bin/python3.3
 
 import cards
 from . import bjstrategies
@@ -36,16 +35,25 @@ class playerstate:
         # enforce only one card on a split Ace
         if currentHand.hand.firstCard().rank == 1:
           currentHand.closed = True
+        # enfore surrender not allowed after a split
+        surrenderAllowed = False
       else:
-        # check for blackjack
+        # check for blackjack.  the fact that this is inside the "else" ensures that we don't pay
+        # blackjack after a split -- ace-ten after a split is just a normal 21.
         currentHand.settleBlackjack()
+
+        # we're setting this to true even though we may have more than 2 cards -- really this
+        # boolean means "this hand was not just split".  having 2 cards is checked later, in
+        # canMakeMove().
+        surrenderAllowed = True
 
       splitResult = None
       while not currentHand.closed:
         # enforce only splitting to four hands
         handCount = len(handsToPlay) + len(self.hands_) + 1
         splitAllowed = handCount < 4
-        move = self.chooseMove(currentHand, dealerUpCard, splitAllowed)
+        move = self.chooseMove(currentHand, dealerUpCard,
+                               splitAllowed, surrenderAllowed)
         splitResult = currentHand.makeMove(move, deck)
         if splitResult is not None:
           # we split
@@ -76,16 +84,16 @@ class playerstate:
     self.hands_[0].settle(21)
     self.balance += self.hands_[0].bet
 
-  def chooseMove(self, currentHand, dealerUpCard, splitAllowed):
+  def chooseMove(self, currentHand, dealerUpCard,
+                 splitAllowed, surrenderAllowed):
     h = currentHand.hand
     section = self.strategy[bjhand.cardvalue(dealerUpCard)]
     handKey = h.value()
     if h.soft():
       handKey = 's'+str(handKey)
     for move in section[handKey].split(','):
-      if currentHand.canMakeMove(move):
-        if move != 'split' or splitAllowed:
-          return move
+      if currentHand.canMakeMove(move, splitAllowed, surrenderAllowed):
+        return move
     return 'stand'
 
 
