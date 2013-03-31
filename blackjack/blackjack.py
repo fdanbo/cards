@@ -1,9 +1,9 @@
 #!/usr/local/bin/python3.3
 
 import cards
-import bjstrategies
-from bjhand import bjhand
-from bjplayerhand import bjplayerhand
+from . import bjstrategies
+from .bjhand import bjhand
+from .bjplayerhand import bjplayerhand
 
 import logging
 
@@ -167,6 +167,3 @@ def test2():
 
 def stest1():
   splittest(8, 8, 1, logging.DEBUG)
-
-if __name__ == '__main__':
-  test2()

@@ -1,5 +1,5 @@
 
-from bjhand import bjhand
+from .bjhand import bjhand
 
 class bjplayerhand:
   def __init__(self, strategy, bet):
