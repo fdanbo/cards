@@ -284,7 +284,7 @@ def run():
         csvwriter2 = csv.writer(f2)
 
         csvwriter1.writerow(['dealer','player','hit','stand','surrender','double','split'])
-        csvwriter2.writerow(['player','A','2','3','4','5','6','7','8','9','10'])
+        csvwriter2.writerow(['player','2','3','4','5','6','7','8','9','10','A'])
 
         calc = OddsCalculator()
 
@@ -307,6 +307,8 @@ def run():
         for pc in range(2, 11):
             print('player has: {card}s'.format(card=(pc+10)))
             playerHand = bjhand(2, pc, soft=True)
+
+            resultStrings = []
 
             # for each possible dealer card
             for dc in range(2, 11) + [1]:
