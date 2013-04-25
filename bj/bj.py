@@ -288,7 +288,9 @@ def playerSoftHands_():
     return [bjhand(2, value, haveAce=True) for value in range(minTotal, maxTotal+1)]
 
 def dealerHands_():
-    return [bjhand(1, value, haveAce=value==1) for value in range(2,11) + [1]]
+    minTotal = 2
+    maxTotal = 10
+    return [bjhand(1, value, haveAce=(value==1)) for value in range(minTotal, maxTotal+1) + [1]]
 
 def run():
     with open('raw.csv', 'w') as f1, open('collated.csv', 'w') as f2:
@@ -320,7 +322,7 @@ def run():
             resultStrings = []
 
             # for each possible dealer card
-            for dc in dealerHands_():
+            for dealerHand in dealerHands_():
                 print('  dealer has: {card}'.format(card=dealerHand.value()))
                 resultStrings.append(computeAndWrite(calc, playerHand, dealerHand, csvwriter1))
 
