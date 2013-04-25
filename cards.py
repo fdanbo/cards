@@ -42,6 +42,14 @@ class deck:
   def deal(self, count=1):
     return [self.dealone() for i in range(count)]
 
+  def dealspecificcard(self, cardValue):
+    n = self.nextCardIndex
+    for i in range(n, len(self.deck)):
+      if self.deck[i].value == cardValue:
+        (self.deck[i], self.deck[n]) = (self.deck[n], self.deck[i])
+        return self.dealone()
+    raise DeckEmptyError
+
   def getCardCount(self):
     return len(self.deck)-self.nextCardIndex
 

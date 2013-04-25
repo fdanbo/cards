@@ -49,3 +49,7 @@ class bjhand:
 
   def soft(self):
     return self.haveAce_ and self.value_ < 12
+
+  def cards(self):
+    for c in self.cards_:
+      yield c

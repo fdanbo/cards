@@ -51,10 +51,10 @@ class playerstate:
       if currentHand.closed:
         # no moves to make, just log the object in the database.  this happens on blackjack and
         # after splitting aces.
-        currentHand.checkpointToDB(dealerCard=dealerUpCard,
-                                   move=None,
-                                   canSplit=False,
-                                   canSurrender=False)
+        # currentHand.checkpointToDB(dealerCard=dealerUpCard, move=None, canSplit=False,
+        # canSurrender=False)
+        pass
+
       else:
         # play the hand
         while not currentHand.closed:
@@ -66,10 +66,7 @@ class playerstate:
 
           # log the move for this hand. we don't save them until everything is settled, so that we can
           # record the result.
-          currentHand.checkpointToDB(dealerCard=dealerUpCard,
-                                     move=move,
-                                     canSplit=splitAllowed,
-                                     canSurrender=surrenderAllowed)
+          # currentHand.checkpointToDB(dealerCard=dealerUpCard, move=move, canSplit=splitAllowed, canSurrender=surrenderAllowed)
 
           splitResult = currentHand.makeMove(move, deck)
           if splitResult is not None:
@@ -126,7 +123,14 @@ class table:
   def setPlayers(self, playerStrategyList):
     self.playerStates = [playerstate(x) for x in playerStrategyList]
 
-  def playHand(self):
+  @staticmethod
+  def dealCard_(deck, f, wantedValue):
+    if wantedValue is None:
+      f(deck.dealone())
+    else:
+      f(cards.card(wantedValue, 0))
+
+  def playHand(self, dealerUpCard=None, playerFirstCard=None, playerSecondCard=None):
     # by rule, if there are less than two decks left, we reshuffle
     if self.deck.getCardCount() < 104:
       self.deck.shuffle()
@@ -136,11 +140,15 @@ class table:
       s.startNewHand(BET_AMOUNT)
     self.dealerHand = bjhand()
 
-    # deal two cards to everyone
-    for i in range(2):
-      for s in self.playerStates:
-        s.dealCard(self.deck.dealone())
-      self.dealerHand.addCard(self.deck.dealone())
+    # deal first card to everyone
+    for s in self.playerStates:
+      self.dealCard_(self.deck, s.dealCard, playerFirstCard)
+    self.dealCard_(self.deck, self.dealerHand.addCard, dealerUpCard)
+
+    # deal second card to everyone
+    for s in self.playerStates:
+      self.dealCard_(self.deck, s.dealCard, playerSecondCard)
+    self.dealCard_(self.deck, self.dealerHand.addCard, None)
 
     dealerHasBlackjack = (self.dealerHand.value() == 21)
 
@@ -166,17 +174,22 @@ class table:
 
 
 def runtest(deckCount, playerCount, handCount,
+            dealerCard=None,
+            playerCard1=None, playerCard2=None,
             loggingLevel=logging.WARNING):
   # just play one hand, printing details
   logging.basicConfig(level=loggingLevel)
   mytable = table(deckCount)
-  mytable.setPlayers([bjstrategies.S1 for x in range(playerCount)])
+  mytable.setPlayers([bjstrategies.T1 for x in range(4)] +
+                     [bjstrategies.T2 for x in range(4)])
   for i in range(handCount):
-    mytable.playHand()
+    mytable.playHand(dealerUpCard=dealerCard,
+                     playerFirstCard=playerCard1,
+                     playerSecondCard=playerCard2)
   print('balances: {}'.format(mytable))
 
 def splittest(deckCount, playerCount, handCount,
-            loggingLevel=logging.WARNING):
+              loggingLevel=logging.WARNING):
   # just play one hand, printing details
   logging.basicConfig(level=loggingLevel)
   bjplay.createDatabase('splittest.db')
@@ -187,10 +200,19 @@ def splittest(deckCount, playerCount, handCount,
   print('balances: {}'.format(mytable))
 
 def test1():
-  runtest(8, 8, 1, logging.DEBUG)
+  bjplay.createDatabase('test1.db')
+  runtest(8, 8, 1, loggingLevel=logging.DEBUG)
 
 def test2():
+  bjplay.createDatabase('test2.db')
   runtest(8, 8, 100000)
 
+def test3():
+  bjplay.createDatabase('test3.db')
+  runtest(80, 80, 10000,
+          dealerCard=1,
+          playerCard1=8,
+          playerCard2=7)
+
 def stest1():
-  splittest(8, 8, 1, logging.DEBUG)
+  splittest(8, 8, 1, loggingLevel=logging.DEBUG)

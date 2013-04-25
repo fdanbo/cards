@@ -9,21 +9,21 @@ import csv
 # - compute odds overall
 
 class bjhand():
-    def __init__(self, cardCount=0, total=0, soft=False, splitable=True):
+    def __init__(self, cardCount=0, total=0, haveAce=False, splitable=True):
         self.cardCount_ = cardCount
         self.total_ = total
-        self.soft_ = soft
+        self.haveAce_ = haveAce
         self.splitable_ = splitable
 
     def clone(self):
         return bjhand(self.cardCount_, self.total_,
-                      self.soft_, self.splitable_)
+                      self.haveAce_, self.splitable_)
 
     def addCard(self, card):
         self.cardCount_ += 1
         self.total_ += card
-        if not self.soft_:
-            self.soft_ = (card == 1)
+        if not self.haveAce_:
+            self.haveAce_ = (card == 1)
 
     def isBlackjack(self):
         return self.cardCount_ == 2 and self.value() == 21
@@ -31,7 +31,7 @@ class bjhand():
     def createSplit(self):
         return bjhand(cardCount=1,
                       total=self.total_/2,
-                      soft=self.total_==2,
+                      haveAce=self.total_==2,
                       splitable=False)
 
     def getLegalMoves(self):
@@ -65,7 +65,7 @@ class bjhand():
             return self.total_
 
     def soft(self):
-        return self.total_ <= 11 and self.soft_
+        return self.total_ <= 11 and self.haveAce_
 
 
 class OddsCalculator():
@@ -231,9 +231,9 @@ def test2():
 
 def test3():
     # two cards, sum=2
-    playerHand = bjhand(2, 2, soft=True)
+    playerHand = bjhand(2, 2, haveAce=True)
     # one card, sum=1, soft (ie dealer has an ace)
-    dealerHand = bjhand(1, 1, soft=True)
+    dealerHand = bjhand(1, 1, haveAce=True)
 
     calc = OddsCalculator()
 
@@ -277,6 +277,18 @@ def computeAndWrite(calc, playerHand, dealerHand, csvwriter):
             break
     return resultString
 
+def playerHardHands_():
+    minTotal = 4
+    maxTotal = 20
+    return [bjhand(2, value) for value in range(minTotal, maxTotal+1)]
+
+def playerSoftHands_():
+    minTotal = 2
+    maxTotal = 10
+    return [bjhand(2, value, haveAce=True) for value in range(minTotal, maxTotal+1)]
+
+def dealerHands_():
+    return [bjhand(1, value, haveAce=value==1) for value in range(2,11) + [1]]
 
 def run():
     with open('raw.csv', 'w') as f1, open('collated.csv', 'w') as f2:
@@ -289,31 +301,27 @@ def run():
         calc = OddsCalculator()
 
         # for each possible hard player hand
-        for pc in range(4, 21):
-            print('player has: {card}'.format(card=pc))
-            playerHand = bjhand(2, pc)
+        for playerHand in playerHardHands_():
+            print('player has: {card}'.format(card=playerHand.value()))
 
             resultStrings = []
 
             # for each possible dealer card
-            for dc in range(2, 11) + [1]:
-                print('  dealer has: {card}'.format(card=dc))
-                dealerHand = bjhand(1, dc)
+            for dealerHand in dealerHands_():
+                print('  dealer has: {card}'.format(card=dealerHand.value()))
                 resultStrings.append(computeAndWrite(calc, playerHand, dealerHand, csvwriter1))
 
             csvwriter2.writerow([playerHand.value()] + resultStrings)
 
         # for each possible soft player hand
-        for pc in range(2, 11):
-            print('player has: {card}s'.format(card=(pc+10)))
-            playerHand = bjhand(2, pc, soft=True)
+        for playerHand in playerSoftHands_():
+            print('player has: {card}s'.format(card=playerHand.value()))
 
             resultStrings = []
 
             # for each possible dealer card
-            for dc in range(2, 11) + [1]:
-                print('  dealer has: {card}'.format(card=dc))
-                dealerHand = bjhand(1, dc)
+            for dc in dealerHands_():
+                print('  dealer has: {card}'.format(card=dealerHand.value()))
                 resultStrings.append(computeAndWrite(calc, playerHand, dealerHand, csvwriter1))
 
             csvwriter2.writerow([str(playerHand.value())+'s'] + resultStrings)
