@@ -1,10 +1,6 @@
 
 import csv
-
-# TODO
-# - ignore dealer & player blackjacks
-# - one card on split aces
-# - soft hands
+import functools
 
 # - compute odds overall
 
@@ -205,6 +201,41 @@ class OddsCalculator():
             else:
                 return 1.0
 
+
+class OverallOddsCalculator():
+    def __init__(self):
+        self.calc = OddsCalculator()
+
+    def computeOverallOdds(self):
+        return OddsCalculator.averageAcrossCards_(bjhand(),
+                                                  functools.partial(self.onFirstPlayerCard_, bjhand()))
+
+    def onFirstPlayerCard_(self, dealerHand, playerHand):
+        return OddsCalculator.averageAcrossCards_(dealerHand,
+                                                  functools.partial(self.onFirstDealerCard_, playerHand))
+
+    def onFirstDealerCard_(self, playerHand, dealerHand):
+        return OddsCalculator.averageAcrossCards_(playerHand,
+                                                  functools.partial(self.onSecondPlayerCard_, dealerHand))
+
+    def onSecondPlayerCard_(self, dealerHand, playerHand):
+        print('player has: {value}'.format(value=playerHand.value()))
+        return OddsCalculator.averageAcrossCards_(dealerHand,
+                                                  functools.partial(self.onSecondDealerCard_, playerHand))
+
+    def onSecondDealerCard_(self, playerHand, dealerHand):
+        print('  dealer has: {value}'.format(value=dealerHand.value()))
+
+        # check for blackjack
+        dealerHasBlackjack = dealerHand.isBlackjack();
+        playerHasBlackjack = playerHand.isBlackjack();
+        if dealerHasBlackjack:
+            return 0.0 if playerHasBlackjack else -1.0
+        elif playerHasBlackjack:
+            return 1.5
+
+        return self.calc.computeAverage_playerTurn(playerHand, dealerHand)
+
 def test1():
     # two cards, sum=19
     playerHand = bjhand(2, 19)
@@ -328,9 +359,15 @@ def run():
 
             csvwriter2.writerow([str(playerHand.value())+'s'] + resultStrings)
 
+def run2():
+    calc = OverallOddsCalculator()
+    odds = calc.computeOverallOdds()
+    print('overall odds: {odds}'.format(odds=odds))
+
+
 def profile():
     import cProfile
     cProfile.run('run()')
 
 if __name__ == '__main__':
-    run()
+    run2()
