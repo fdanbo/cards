@@ -180,8 +180,8 @@ def runtest(deckCount, playerCount, handCount,
   # just play one hand, printing details
   logging.basicConfig(level=loggingLevel)
   mytable = table(deckCount)
-  mytable.setPlayers([bjstrategies.T1 for x in range(4)] +
-                     [bjstrategies.T2 for x in range(4)])
+  mytable.setPlayers([bjstrategies.T1 for x in range(playerCount/2)] +
+                     [bjstrategies.T2 for x in range(playerCount/2)])
   for i in range(handCount):
     mytable.playHand(dealerUpCard=dealerCard,
                      playerFirstCard=playerCard1,
@@ -200,18 +200,15 @@ def splittest(deckCount, playerCount, handCount,
   print('balances: {}'.format(mytable))
 
 def test1():
-  bjplay.createDatabase('test1.db')
   runtest(8, 8, 1, loggingLevel=logging.DEBUG)
 
 def test2():
-  bjplay.createDatabase('test2.db')
   runtest(8, 8, 100000)
 
 def test3():
-  bjplay.createDatabase('test3.db')
-  runtest(80, 80, 10000,
+  runtest(8, 2, 1000000,
           dealerCard=1,
-          playerCard1=8,
+          playerCard1=10,
           playerCard2=7)
 
 def stest1():

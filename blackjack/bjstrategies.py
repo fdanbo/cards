@@ -253,7 +253,7 @@ T2 = {
     4:'hit', 5:'hit', 6:'hit', 7:'hit', 8:'hit',
     9:'hit', 10:'hit', 11:'hit', 12:'hit', 13:'hit',
     14:'hit', 15:'stand', 16:'stand',
-    17:'stand', 18:'stand', 19:'stand', 20:'stand',
+    17:'surrender,stand', 18:'stand', 19:'stand', 20:'stand',
     's12':'split', 's13':'hit', 's14':'hit', 's15':'hit', 's16':'hit',
     's17':'hit', 's18':'hit', 's19':'stand', 's20':'stand'
   },
