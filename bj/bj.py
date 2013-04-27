@@ -290,25 +290,21 @@ def abbreviate_(move):
     return '?'
 
 def playerHardHands_():
-    #minTotal = 4
-    minTotal = 19
+    minTotal = 4
     maxTotal = 20
     return [bjhand(2, value) for value in range(minTotal, maxTotal+1)]
 
 def playerSoftHands_():
-    # minTotal = 2
-    minTotal = 9
+    minTotal = 2
     maxTotal = 10
     return [bjhand(2, value, haveAce=True) for value in range(minTotal, maxTotal+1)]
 
 def dealerHands_():
-    #minTotal = 2
-    minTotal = 9
+    minTotal = 2
     maxTotal = 10
     return [bjhand(1, value, haveAce=(value==1)) for value in range(minTotal, maxTotal+1) + [1]]
 
-
-def computeOddsForDealerHand(dealerHand, queue):
+def computeOddsForDealerHand(dealerHand):
     calc = OddsCalculator()
 
     averagesByHand = {}
@@ -322,19 +318,16 @@ def computeOddsForDealerHand(dealerHand, queue):
         averagesByHand[playerHand.tostring()] = calc.computeAverages_playerTurn(playerHand, dealerHand)
 
     print('done computing for: {card}'.format(card=dealerHand.tostring()))
-    queue.put((dealerHand.tostring(), averagesByHand))
+    return (dealerHand.tostring(), averagesByHand)
 
 def run():
-    queue = multiprocessing.Queue()
+    pool = multiprocessing.Pool(10)
 
-    # for each possible dealer hand
-    for dealerHand in dealerHands_():
-        computeOddsForDealerHand(dealerHand, queue)
+    # start the processes
+    result = pool.map_async(computeOddsForDealerHand, dealerHands_())
 
-    # collate the output
-    rawData = []
-    while not queue.empty():
-        rawData.append(queue.get())
+    # blocks until all the processes are done
+    rawData = result.get()
 
     # now write the output
     with open('raw.csv', 'w') as f1:
