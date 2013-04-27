@@ -1,8 +1,7 @@
 
 import csv
 import functools
-
-# - compute odds overall
+import multiprocessing
 
 class bjhand():
     def __init__(self, cardCount=0, total=0, haveAce=False, splitable=True):
@@ -59,6 +58,13 @@ class bjhand():
             return self.total_ + 10
         else:
             return self.total_
+
+    def tostring(self):
+        if self.cardCount_==1:
+            return 'A' if self.total_==1 else str(self.total_)
+        else:
+            return '{value}{soft}'.format(value=self.value(),
+                                          soft='s' if self.soft() else '')
 
     def soft(self):
         return self.total_ <= 11 and self.haveAce_
@@ -283,81 +289,89 @@ def abbreviate_(move):
     if move=='split': return 'P'
     return '?'
 
-def computeAndWrite(calc, playerHand, dealerHand, csvwriter):
-    # compute
-    averages = calc.computeAverages_playerTurn(playerHand, dealerHand)
-    playerHandString = '{value}{soft}'.format(value=playerHand.value(),
-                                              soft='s' if playerHand.soft() else '')
-    csvwriter.writerow([dealerHand.value(), playerHandString,
-                        averages.get('hit', 'n/a'),
-                        averages.get('stand', 'n/a'),
-                        averages.get('surrender', 'n/a'),
-                        averages.get('double', 'n/a'),
-                        averages.get('split', 'n/a')])
-
-    # sort highest to lowest
-    averages = sorted([(averages.get(move, -2.0), abbreviate_(move))
-                        for move in ['hit', 'stand', 'surrender', 'double', 'split']],
-                      reverse=True)
-    # the string result is the order of the moves you want, but always ends if you run into a hit or
-    # stand.
-    resultString = ''
-    for avg, move in averages:
-        resultString += move
-        if move=='H' or move=='S':
-            break
-    return resultString
-
 def playerHardHands_():
-    minTotal = 4
+    #minTotal = 4
+    minTotal = 19
     maxTotal = 20
     return [bjhand(2, value) for value in range(minTotal, maxTotal+1)]
 
 def playerSoftHands_():
-    minTotal = 2
+    # minTotal = 2
+    minTotal = 9
     maxTotal = 10
     return [bjhand(2, value, haveAce=True) for value in range(minTotal, maxTotal+1)]
 
 def dealerHands_():
-    minTotal = 2
+    #minTotal = 2
+    minTotal = 9
     maxTotal = 10
     return [bjhand(1, value, haveAce=(value==1)) for value in range(minTotal, maxTotal+1) + [1]]
 
+
+def computeOddsForDealerHand(dealerHand, queue):
+    calc = OddsCalculator()
+
+    averagesByHand = {}
+
+    # for each possible hard player hand
+    for playerHand in playerHardHands_():
+        averagesByHand[playerHand.tostring()] = calc.computeAverages_playerTurn(playerHand, dealerHand)
+
+    # for each possible soft player hand
+    for playerHand in playerSoftHands_():
+        averagesByHand[playerHand.tostring()] = calc.computeAverages_playerTurn(playerHand, dealerHand)
+
+    print('done computing for: {card}'.format(card=dealerHand.tostring()))
+    queue.put((dealerHand.tostring(), averagesByHand))
+
 def run():
-    with open('raw.csv', 'w') as f1, open('collated.csv', 'w') as f2:
-        csvwriter1 = csv.writer(f1)
-        csvwriter2 = csv.writer(f2)
+    queue = multiprocessing.Queue()
 
-        csvwriter1.writerow(['dealer','player','hit','stand','surrender','double','split'])
-        csvwriter2.writerow(['player','2','3','4','5','6','7','8','9','10','A'])
+    # for each possible dealer hand
+    for dealerHand in dealerHands_():
+        computeOddsForDealerHand(dealerHand, queue)
 
-        calc = OddsCalculator()
+    # collate the output
+    rawData = []
+    while not queue.empty():
+        rawData.append(queue.get())
 
-        # for each possible hard player hand
-        for playerHand in playerHardHands_():
-            print('player has: {card}'.format(card=playerHand.value()))
+    # now write the output
+    with open('raw.csv', 'w') as f1:
+        csvwriter = csv.writer(f1)
+        csvwriter.writerow(['dealer','player','hit','stand','surrender','double','split'])
+        # FIXME: iterate in sorted order
+        for dealerHand, playerHands in rawData:
+            # FIXME: iterate in sorted order
+            for playerHand, averages in playerHands.iteritems():
+                resultArray = [averages.get(move, 'n/a') for move in ['hit', 'stand', 'surrender', 'double', 'split']]
+                csvwriter.writerow([dealerHand, playerHand] + resultArray)
 
-            resultStrings = []
+    with open('collated.csv', 'w') as f2:
+        # create a map dealerhand->playerhand->string
+        results = {}
 
-            # for each possible dealer card
-            for dealerHand in dealerHands_():
-                print('  dealer has: {card}'.format(card=dealerHand.value()))
-                resultStrings.append(computeAndWrite(calc, playerHand, dealerHand, csvwriter1))
+        for (dealerHand, playerHands) in rawData:
+            results[dealerHand] = {}
+            for playerHand, averages in playerHands.iteritems():
+                averages = sorted([(averages.get(move, -2.0), abbreviate_(move))
+                                   for move in ['hit', 'stand', 'surrender', 'double', 'split']],
+                                  reverse=True)
+                # the string result is the order of the moves you want, but always ends if you run
+                # into a hit or stand.
+                resultString = ''
+                for avg, move in averages:
+                    resultString += move
+                    if move=='H' or move=='S':
+                        break
+                results[dealerHand][playerHand] = resultString
 
-            csvwriter2.writerow([playerHand.value()] + resultStrings)
+        csvwriter = csv.writer(f2)
+        csvwriter.writerow(['player'] + [hand.tostring() for hand in dealerHands_()])
 
-        # for each possible soft player hand
-        for playerHand in playerSoftHands_():
-            print('player has: {card}s'.format(card=playerHand.value()))
-
-            resultStrings = []
-
-            # for each possible dealer card
-            for dealerHand in dealerHands_():
-                print('  dealer has: {card}'.format(card=dealerHand.value()))
-                resultStrings.append(computeAndWrite(calc, playerHand, dealerHand, csvwriter1))
-
-            csvwriter2.writerow([str(playerHand.value())+'s'] + resultStrings)
+        playerHandList = [x.tostring() for x in (playerHardHands_() + playerSoftHands_())]
+        for playerHand in playerHandList:
+            csvwriter.writerow([playerHand] + [results[dh.tostring()][playerHand] for dh in dealerHands_()])
 
 def run2():
     calc = OverallOddsCalculator()
@@ -370,4 +384,4 @@ def profile():
     cProfile.run('run()')
 
 if __name__ == '__main__':
-    run2()
+    run()
