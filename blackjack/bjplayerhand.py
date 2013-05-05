@@ -1,6 +1,5 @@
 
 from .bjhand import bjhand
-from .bjsql import bjplay
 
 class bjplayerhand:
   def __init__(self, strategy, bet):
@@ -9,7 +8,6 @@ class bjplayerhand:
     self.strategy = strategy
     self.closed = False
     self.settled = False
-    self.dataToSave = []
 
   def dealCard(self, card):
     self.hand.addCard(card)
@@ -72,13 +70,6 @@ class bjplayerhand:
     self.closed = True
     self.settled = True
     self.bet *= float(multiplier)
-    last = len(self.dataToSave)-1
-    for i,dbObject in enumerate(self.dataToSave):
-      dbObject.handResult = int(self.bet*10)
-      dbObject.final = (i==last)
-      dbObject.save()
-
-    self.dataToSave = []
 
   def settleBlackjack(self):
     assert(self.hand.cardCount()==2)
@@ -114,19 +105,3 @@ class bjplayerhand:
       h2 = bjplayerhand(self.strategy, self.bet)
       h2.dealCard(self.hand.secondCard())
       return (h1, h2)
-
-  def checkpointToDB(self, dealerCard, move, canSplit, canSurrender):
-    # correct canSplit to also check that the cards are the same (it only checks that we have fewer
-    # than four hands)
-    canSplit = canSplit and self.canMakeMove('split', canSplit, canSurrender)
-    canSurrender = canSurrender and self.canMakeMove('surrender', canSplit, canSurrender)
-    dbObject = bjplay(handValue=self.hand.value(),
-                      soft=self.hand.soft(),
-                      dealerRank=bjhand.cardvalue(dealerCard),
-                      canHit=not self.closed,
-                      canSplit=canSplit and not self.closed,
-                      canDouble=self.hand.cardCount()==2 and not self.closed,
-                      canSurrender=canSurrender and not self.closed,
-                      move=move)
-    # add to the list of things to save after we settle
-    self.dataToSave.append(dbObject)

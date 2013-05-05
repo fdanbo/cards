@@ -7,18 +7,32 @@ from .bjsql import bjplay
 
 import logging
 
-BET_AMOUNT = 1.0
-
 class playerstate:
-  def __init__(self, strategy):
+  def __init__(self, strategy, bettingStrategy):
     self.strategy = strategy
+    self.bettingStrategy = bettingStrategy
     self.balance = 0.0
+    self.currentHandBalance = 0.0
+    self.totalBets = 0.0
+    self.handCount = 0
+    self.bettingState = self.bettingStrategy["initial"]
 
   def __repr__(self):
-    return str(self.balance)
+    return '{pct:.2f}%'.format(pct=self.balance/self.totalBets*100.0)
 
-  def startNewHand(self, bet):
+  def startNewHand(self, isNewShoe):
+    assert(self.currentHandBalance == 0)
+
+    # restart the betting scheme if starting a new shoe
+    if isNewShoe:
+      self.bettingState = self.bettingStrategy["initial"]
+
+    bet = self.bettingState["bet"]
+    logging.debug("bet is {bet}".format(bet=bet))
     self.hands_ = [bjplayerhand(self.strategy, bet)]
+
+    self.totalBets += bet
+    self.handCount += 1
 
   # call this once for each of the first two cards
   def dealCard(self, card):
@@ -64,10 +78,6 @@ class playerstate:
           move = self.chooseMove(currentHand, dealerUpCard,
                                  splitAllowed, surrenderAllowed)
 
-          # log the move for this hand. we don't save them until everything is settled, so that we can
-          # record the result.
-          # currentHand.checkpointToDB(dealerCard=dealerUpCard, move=move, canSplit=splitAllowed, canSurrender=surrenderAllowed)
-
           splitResult = currentHand.makeMove(move, deck)
           if splitResult is not None:
             # we split
@@ -81,23 +91,32 @@ class playerstate:
         self.hands_.append(currentHand)
         if currentHand.settled:
           # 'bet' is set to negative if we lost
-          self.balance += currentHand.bet
+          self.currentHandBalance += currentHand.bet
 
   def settle(self, dealerValue):
     for h in self.hands_:
       if not h.settled:
         h.settle(dealerValue)
         # 'bet' is set to negative if we lost
-        self.balance += h.bet
+        self.currentHandBalance += h.bet
+
+    self.balance += self.currentHandBalance
+    if self.currentHandBalance > 0:
+      logging.debug("next state is {state}".format(state=self.bettingState["next_win"]))
+      self.bettingState = self.bettingStrategy[self.bettingState["next_win"]]
+    elif self.currentHandBalance < 0:
+      logging.debug("next state is {state}".format(state=self.bettingState["next_loss"]))
+      self.bettingState = self.bettingStrategy[self.bettingState["next_loss"]]
+    else:
+      logging.debug("leaving state alone")
+    self.currentHandBalance = 0.0
 
   def settleDealerBJ(self):
-    logging.debug(self.hands_[0].hand)
-
     # TODO: insurance?
     assert(len(self.hands_)==1)
     assert(self.hands_[0].cardCount() == 2)
     self.hands_[0].settle(21)
-    self.balance += self.hands_[0].bet
+    self.currentHandBalance += self.hands_[0].bet
 
   def chooseMove(self, currentHand, dealerUpCard,
                  splitAllowed, surrenderAllowed):
@@ -120,8 +139,8 @@ class table:
   def __repr__(self):
     return ' '.join([str(x) for x in self.playerStates])
 
-  def setPlayers(self, playerStrategyList):
-    self.playerStates = [playerstate(x) for x in playerStrategyList]
+  def setPlayers(self, playerStrategyList, playerBettingStrategyList):
+    self.playerStates = [playerstate(x, y) for x,y in zip(playerStrategyList, playerBettingStrategyList)]
 
   @staticmethod
   def dealCard_(deck, f, wantedValue):
@@ -132,12 +151,13 @@ class table:
 
   def playHand(self, dealerUpCard=None, playerFirstCard=None, playerSecondCard=None):
     # by rule, if there are less than two decks left, we reshuffle
-    if self.deck.getCardCount() < 104:
+    newShoe = self.deck.getCardCount() < 104
+    if newShoe:
       self.deck.shuffle()
 
     # start new hands
     for s in self.playerStates:
-      s.startNewHand(BET_AMOUNT)
+      s.startNewHand(newShoe)
     self.dealerHand = bjhand()
 
     # deal first card to everyone
@@ -180,13 +200,16 @@ def runtest(deckCount, playerCount, handCount,
   # just play one hand, printing details
   logging.basicConfig(level=loggingLevel)
   mytable = table(deckCount)
-  mytable.setPlayers([bjstrategies.T1 for x in range(playerCount/2)] +
-                     [bjstrategies.T2 for x in range(playerCount/2)])
+  bs1 = [bjstrategies.BET_SIMPLE for x in range(playerCount//2)]
+  bs2 = [bjstrategies.BET_STREAK for x in range(playerCount//2)]
+  mytable.setPlayers([bjstrategies.S1 for x in range(playerCount)], bs1+bs2)
   for i in range(handCount):
     mytable.playHand(dealerUpCard=dealerCard,
                      playerFirstCard=playerCard1,
                      playerSecondCard=playerCard2)
   print('balances: {}'.format(mytable))
+
+
 
 def splittest(deckCount, playerCount, handCount,
               loggingLevel=logging.WARNING):
@@ -200,10 +223,10 @@ def splittest(deckCount, playerCount, handCount,
   print('balances: {}'.format(mytable))
 
 def test1():
-  runtest(8, 8, 1, loggingLevel=logging.DEBUG)
+  runtest(8, 8, 5, loggingLevel=logging.DEBUG)
 
 def test2():
-  runtest(8, 8, 100000)
+  runtest(8, 8, 1000000)
 
 def test3():
   runtest(8, 2, 1000000,
