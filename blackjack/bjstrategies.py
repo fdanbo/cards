@@ -337,7 +337,7 @@ DANO = {
     4:'hit', 5:'hit', 6:'hit', 7:'hit', 8:'hit',
     9:'hit', 10:'hit', 11:'double,hit', 12:'hit', 13:'hit',
     14:'hit', 15:'surrender,hit', 16:'surrender,split,hit',
-    17:'stand', 18:'stand', 19:'stand', 20:'stand',
+    17:'surrender', 18:'stand', 19:'stand', 20:'stand',
     's12':'split,hit', 's13':'hit', 's14':'hit', 's15':'hit', 's16':'hit',
     's17':'hit', 's18':'hit', 's19':'stand', 's20':'stand'
   },
@@ -415,19 +415,68 @@ DANO = {
   }
 }
 
-# betting strategies
-BET_SIMPLE = {
-  # always stay in the same state
-  "initial": { "bet":100,
-               "next_win":"initial",
-               "next_loss":"initial"}
-}
+class SimpleBettingStrategy:
+  class State:
+    def getBet(self): return 100
 
-BET_STREAK = {
-  "initial": { "bet":10,
-               "next_win":"winning_streak",
-               "next_loss":"initial" },
-  "winning_streak": { "bet":1000,
-                      "next_win":"winning_streak",
-                      "next_loss":"initial" }
-}
+    def getNextState(self, winnings, shoe):
+      return self
+
+  @staticmethod
+  def createInitialState():
+    return SimpleBettingStrategy.State()
+
+class StreakBettingStrategy:
+  class WinState:
+    def getBet(self): return 1000
+
+    def getNextState(self, winnings, shoe):
+      return (StreakBettingStrategy.LoseState() if winnings<0 else self)
+
+  class LoseState:
+    def getBet(self): return 10
+
+    def getNextState(self, winnings, shoe):
+      return (StreakBettingStrategy.WinState() if winnings>0 else self)
+
+  @staticmethod
+  def createInitialState():
+    return StreakBettingStrategy.LoseState()
+
+class MemoryBettingStrategy():
+  class MemoryState():
+    # we must only modify the state in __init__ and nowhere else, since they are assumed immutable
+    # (they can be reused later assuming to refer to the same state)
+    def __init__(self, other=None, winnings=None):
+      if other:
+        self.lastTenWinnings = other.lastTenWinnings
+        self.lastTenWinnings.append(winnings)
+        if len(self.lastTenWinnings) > 10:
+          self.lastTenWinnings.pop(0)
+      else:
+        self.lastTenWinnings = []
+    def getBet(self):
+      if len(self.lastTenWinnings) > 0:
+        avg = sum(self.lastTenWinnings)/len(self.lastTenWinnings)
+        assert(type(avg)==float)
+        return (1000 if avg>0 else 10)
+      else:
+        return 10
+    def getNextState(self, winnings, shoe):
+      return MemoryBettingStrategy.MemoryState(self, winnings)
+
+  @staticmethod
+  def createInitialState():
+    return MemoryBettingStrategy.MemoryState()
+
+class AcesLeftBettingStrategy():
+  class State():
+    def __init__(self, acesLeft=32):
+      self.acesLeft = acesLeft
+    def getBet(self):
+      return 1000 if self.acesLeft>16 else 10
+    def getNextState(self, winnings, shoe):
+      return AcesLeftBettingStrategy.State(shoe.getCardsLeft(1))
+  @staticmethod
+  def createInitialState():
+    return AcesLeftBettingStrategy.State()

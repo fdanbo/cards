@@ -17,11 +17,12 @@ class bjhand():
     def addCard(self, card):
         self.cardCount_ += 1
         self.total_ += card
-        if not self.haveAce_:
-            self.haveAce_ = (card == 1)
+        if card==1:
+          self.haveAce_ = True
 
     def isBlackjack(self):
-        return self.cardCount_ == 2 and self.value() == 21
+        # self.splitable_ indicates that the hand has not been split
+        return self.cardCount_ == 2 and self.value() == 21 and self.splitable_
 
     def createSplit(self):
         return bjhand(cardCount=1,
@@ -95,7 +96,7 @@ class OddsCalculator():
             return None
 
     @staticmethod
-    def averageAcrossCards_(hand, f, noTens=False, noAces=False):
+    def averageAcrossCards_(hand, f, noTens=False, noAces=False, verbose=False):
         numeratorForAverage = 0.0
         denominatorForAverage = 0.0
         for card, cardCount in OddsCalculator.cardCounts.iteritems():
@@ -103,6 +104,8 @@ class OddsCalculator():
             if card==10 and noTens: continue
             currentHand = hand.clone()
             currentHand.addCard(card)
+            if verbose:
+                print('considering {}'.format(currentHand.tostring()))
             numeratorForAverage += (f(currentHand)*cardCount)
             denominatorForAverage += cardCount
         return numeratorForAverage/denominatorForAverage
@@ -135,7 +138,6 @@ class OddsCalculator():
         if (playerHand.valueIsSplitable_() and
             splitKey not in self.splitsBeingComputed_):
 
-            # note that the value being added is the hand value, ie 16 for splitting 8's
             self.splitsBeingComputed_.add(splitKey)
 
             splitHand = playerHand.createSplit()
@@ -198,7 +200,8 @@ class OddsCalculator():
             # decision to be made in this case)
             noTens = dealerHand.cardCount_==1 and dealerHand.value() == 11
             noAces = dealerHand.cardCount_==1 and dealerHand.value() == 10
-            return self.averageAcrossCards_(dealerHand, dealerf, noTens, noAces)
+            verbose = False
+            return self.averageAcrossCards_(dealerHand, dealerf, noTens, noAces, verbose)
         else:
             if dealerHand.value() > playerHand.value():
                 return -1.0
@@ -221,65 +224,43 @@ class OverallOddsCalculator():
                                                   functools.partial(self.onFirstDealerCard_, playerHand))
 
     def onFirstDealerCard_(self, playerHand, dealerHand):
+        print('dealer has: {value}'.format(value=dealerHand.value()))
         return OddsCalculator.averageAcrossCards_(playerHand,
                                                   functools.partial(self.onSecondPlayerCard_, dealerHand))
 
     def onSecondPlayerCard_(self, dealerHand, playerHand):
-        print('player has: {value}'.format(value=playerHand.value()))
-        return OddsCalculator.averageAcrossCards_(dealerHand,
-                                                  functools.partial(self.onSecondDealerCard_, playerHand))
+        print('  player has: {value}'.format(value=playerHand.value()))
 
-    def onSecondDealerCard_(self, playerHand, dealerHand):
-        print('  dealer has: {value}'.format(value=dealerHand.value()))
+        # we consider blackjacks first.  we do this by computing the odds that a blackjack will come
+        # out for the dealer, without actually dealing it (the odds calculator will ignore dealer
+        # blackjack as a possibility).
+        playerHasBlackjack = playerHand.isBlackjack()
 
-        # check for blackjack
-        dealerHasBlackjack = dealerHand.isBlackjack();
-        playerHasBlackjack = playerHand.isBlackjack();
-        if dealerHasBlackjack:
-            return 0.0 if playerHasBlackjack else -1.0
-        elif playerHasBlackjack:
-            return 1.5
+        dealerBlackjackDenominator = float(sum(OddsCalculator.cardCounts.values()))
+        if dealerHand.value() == 10:
+            # odds of dealer bj are the odds of him having an ace
+            dealerBlackjackNumerator = float(OddsCalculator.cardCounts[1])
+        elif dealerHand.value() == 11:
+            # odds of dealer bj are the odds of him having a ten
+            dealerBlackjackNumerator = float(OddsCalculator.cardCounts[10])
+        else:
+            dealerBlackjackNumerator = 0.0
 
-        return self.calc.computeAverage_playerTurn(playerHand, dealerHand)
+        if playerHasBlackjack:
+            pushOdds = dealerBlackjackNumerator/dealerBlackjackDenominator
+            playerBJOdds = 1.0-pushOdds
+            return 1.5 * playerBJOdds
+        else:
+            dealerBJOdds = dealerBlackjackNumerator/dealerBlackjackDenominator
+            playOnOdds = 1.0-dealerBJOdds
+            return (playOnOdds * self.calc.computeAverage_playerTurn(playerHand, dealerHand) -
+                    dealerBJOdds)
 
 def test1():
-    # two cards, sum=19
-    playerHand = bjhand(2, 19)
-    # one cards, sum=6
-    dealerHand = bjhand(1, 6)
-
-    calc = OddsCalculator()
-    average = calc.computeAverage_dealerTurn(playerHand, dealerHand)
-    print('average standing on 19 against a 6: {avg:.4f}'.format(avg=average))
-
-def test2():
-    # two cards, sum=20
-    playerHand = bjhand(2, 20)
-    # one card, sum=6
-    dealerHand = bjhand(1, 6)
-
-    calc = OddsCalculator()
-
-    print('computing averages for 20 against a 6...')
-    averages = calc.computeAverages_playerTurn(playerHand, dealerHand)
-
-    for key, value in sorted(averages.iteritems()):
-        print('{move}: {average:.4f}'.format(move=key, average=value))
-
-def test3():
-    # two cards, sum=2
-    playerHand = bjhand(2, 2, haveAce=True)
-    # one card, sum=1, soft (ie dealer has an ace)
-    dealerHand = bjhand(1, 1, haveAce=True)
-
-    calc = OddsCalculator()
-
-    print('computing averages for 20 against an ace...')
-    averages = calc.computeAverages_playerTurn(playerHand, dealerHand)
-
-    for key, value in sorted(averages.iteritems()):
-        print('{move}: {average:.4f}'.format(move=key, average=value))
-
+    dealerHand, playerHands = computeOddsForDealerHand(bjhand(1, 1, haveAce=True))
+    for playerHand, averages in playerHands.iteritems():
+        resultArray = [averages.get(move, 'n/a') for move in ['hit', 'stand', 'surrender', 'double', 'split']]
+        print(playerHand, resultArray)
 
 def abbreviate_(move):
     if move=='hit': return 'H'
@@ -366,7 +347,7 @@ def run():
         for playerHand in playerHandList:
             csvwriter.writerow([playerHand] + [results[dh.tostring()][playerHand] for dh in dealerHands_()])
 
-def run2():
+def computeoverallodds():
     calc = OverallOddsCalculator()
     odds = calc.computeOverallOdds()
     print('overall odds: {odds}'.format(odds=odds))
@@ -377,4 +358,4 @@ def profile():
     cProfile.run('run()')
 
 if __name__ == '__main__':
-    run()
+    computeoverallodds()

@@ -8,30 +8,31 @@ from .bjsql import bjplay
 import logging
 
 class playerstate:
-  def __init__(self, strategy, bettingStrategy):
+  def __init__(self, strategy, initialBettingState):
     self.strategy = strategy
-    self.bettingStrategy = bettingStrategy
+    self.initialBettingState = initialBettingState
     self.balance = 0.0
     self.currentHandBalance = 0.0
     self.totalBets = 0.0
     self.handCount = 0
-    self.bettingState = self.bettingStrategy["initial"]
+    self.bettingState = self.initialBettingState
 
   def __repr__(self):
     return '{pct:.2f}%'.format(pct=self.balance/self.totalBets*100.0)
 
-  def startNewHand(self, isNewShoe):
+  def startNewHand(self, isNewShoe, deck):
     assert(self.currentHandBalance == 0)
 
     # restart the betting scheme if starting a new shoe
     if isNewShoe:
-      self.bettingState = self.bettingStrategy["initial"]
+      self.bettingState = self.initialBettingState
 
-    bet = self.bettingState["bet"]
-    logging.debug("bet is {bet}".format(bet=bet))
-    self.hands_ = [bjplayerhand(self.strategy, bet)]
+    self.originalBet = self.bettingState.getBet()
+    logging.debug("bet is {bet}".format(bet=self.originalBet))
+    self.hands_ = [bjplayerhand(self.strategy, self.originalBet)]
 
-    self.totalBets += bet
+    self.shoe_ = deck
+    self.totalBets += self.originalBet
     self.handCount += 1
 
   # call this once for each of the first two cards
@@ -101,14 +102,9 @@ class playerstate:
         self.currentHandBalance += h.bet
 
     self.balance += self.currentHandBalance
-    if self.currentHandBalance > 0:
-      logging.debug("next state is {state}".format(state=self.bettingState["next_win"]))
-      self.bettingState = self.bettingStrategy[self.bettingState["next_win"]]
-    elif self.currentHandBalance < 0:
-      logging.debug("next state is {state}".format(state=self.bettingState["next_loss"]))
-      self.bettingState = self.bettingStrategy[self.bettingState["next_loss"]]
-    else:
-      logging.debug("leaving state alone")
+    self.bettingState = self.bettingState.getNextState(
+      winnings=self.currentHandBalance / self.originalBet,
+      shoe=self.shoe_)
     self.currentHandBalance = 0.0
 
   def settleDealerBJ(self):
@@ -157,7 +153,7 @@ class table:
 
     # start new hands
     for s in self.playerStates:
-      s.startNewHand(newShoe)
+      s.startNewHand(newShoe, self.deck)
     self.dealerHand = bjhand()
 
     # deal first card to everyone
@@ -200,9 +196,11 @@ def runtest(deckCount, playerCount, handCount,
   # just play one hand, printing details
   logging.basicConfig(level=loggingLevel)
   mytable = table(deckCount)
-  bs1 = [bjstrategies.BET_SIMPLE for x in range(playerCount//2)]
-  bs2 = [bjstrategies.BET_STREAK for x in range(playerCount//2)]
-  mytable.setPlayers([bjstrategies.S1 for x in range(playerCount)], bs1+bs2)
+  s1 = bjstrategies.SimpleBettingStrategy.createInitialState()
+  s2 = bjstrategies.StreakBettingStrategy.createInitialState()
+  bs1 = [s1 for x in range(playerCount//2)]
+  bs2 = [s2 for x in range(playerCount//2)]
+  mytable.setPlayers([bjstrategies.DANO for x in range(playerCount)], bs1+bs2)
   for i in range(handCount):
     mytable.playHand(dealerUpCard=dealerCard,
                      playerFirstCard=playerCard1,
@@ -226,7 +224,7 @@ def test1():
   runtest(8, 8, 5, loggingLevel=logging.DEBUG)
 
 def test2():
-  runtest(8, 8, 1000000)
+  runtest(8, 8, 100000)
 
 def test3():
   runtest(8, 2, 1000000,
