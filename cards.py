@@ -21,6 +21,14 @@ class card:
         return '{}{}'.format(card.RANKS[self.rank-1],
                              card.SUITS[self.suit])
 
+    @staticmethod
+    def fromstring(string):
+        return card(card.RANKS.index(string[0])+1,
+                    card.SUITS.index(string[1]))
+
+    def clone(self):
+        return card(self.rank, self.suit)
+
 
 class deck:
     def __init__(self, deckCount=1):
