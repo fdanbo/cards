@@ -111,7 +111,13 @@ class HoldEm:
             self.start_next_round()
 
     def declare_winners(self, indices):
+        # we sort the indices starting after the button
+        keyfn = lambda x: (x-self.dealer_button-1) % len(self.players)
+        indices.sort(key=keyfn)
+
         shares = [self.pot // len(indices)] * len(indices)
+
+        # distribute the remainder
         remainder = self.pot % len(indices)
         for i in range(remainder):
             shares[i] += 1
