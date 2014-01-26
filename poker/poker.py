@@ -41,8 +41,12 @@ class ranking():
                 self.high_cards == rhs.high_cards)
 
     def __lt__(self, rhs):
-        return (self.ranking < rhs.ranking or
-                self.high_cards < rhs.high_cards)
+        if self.ranking < rhs.ranking:
+            return True
+        elif self.ranking == rhs.ranking:
+            return self.high_cards < rhs.high_cards
+        else:
+            return False
 
     def get_description(self):
         h1 = rank_to_string(self.high_cards[0])
