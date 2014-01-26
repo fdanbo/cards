@@ -1,4 +1,3 @@
-# encoding: utf-8
 
 import random
 
@@ -54,12 +53,13 @@ class deck:
     def deal(self, count=1):
         return [self.dealone() for i in range(count)]
 
-    def dealspecificcard(self, cardValue):
+    def dealspecificcard(self, rank, suit=None):
         n = self.nextCardIndex
         for i in range(n, len(self.deck)):
-            if self.deck[i].rank == cardValue:
-                (self.deck[i], self.deck[n]) = (self.deck[n], self.deck[i])
-                return self.dealone()
+            if self.deck[i].rank == rank:
+                if suit is None or suit == self.deck[i].suit:
+                    (self.deck[i], self.deck[n]) = (self.deck[n], self.deck[i])
+                    return self.dealone()
         raise DeckEmptyError
 
     def getCardCount(self):
