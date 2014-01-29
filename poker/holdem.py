@@ -10,7 +10,7 @@ class MoveNotAllowed(Exception):
 class PlayerState:
     def __init__(self, index, name):
         self.index = index
-        self.bank = 100
+        self.bank = 0
         self.bet_this_round = 0
         self.played_this_round = False
         self.folded = False
@@ -32,6 +32,7 @@ class HoldEm:
         self.winners = None
         self.callback = callback
         self.playing_blinds = False
+        self.deck = cards.deck()
 
     def nextfrom(self, i, increment=1):
         return (i+increment) % len(self.players)
@@ -161,6 +162,9 @@ class HoldEm:
             # the hand is over
             self.showdown()
         else:
+            # burn one
+            self.deck.deal()
+
             cards_to_deal = 1 if self.upcards else 3
             self.upcards.extend(self.deck.deal(cards_to_deal))
 
@@ -206,7 +210,6 @@ class HoldEm:
         return d
 
     def deal(self):
-        self.deck = cards.deck()
         self.deck.shuffle()
 
         self.pot = 0
@@ -225,7 +228,7 @@ class HoldEm:
         # deal two cards to each player
         for i in range(len(self.players)*2):
             # start with the dealer button and rotate
-            r = self.nextfrom(self.dealer_button, i)
+            r = self.nextfrom(self.dealer_button, i+1)
             self.players[r].hand.addcard(self.deck.dealone())
 
         # play the blinds

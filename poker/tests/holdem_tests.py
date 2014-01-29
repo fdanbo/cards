@@ -2,7 +2,53 @@
 import mock
 import unittest
 
+import cards
 import poker.holdem as holdem
+
+
+def create_stacked_deck(hands_wanted, upcards_wanted):
+    # create an actual deck to pull the cards from; this is so that we don't
+    # duplicate cards, and end up with the correct number of cards in the
+    # deck.  It shouldn't matter that they're not shuffled.
+    deck = cards.deck()
+
+    cardlist = []
+
+    def addcard(c=None):
+        if c:
+            deck.dealspecificcard(c.rank, c.suit)
+            cardlist.append(c)
+        else:
+            cardlist.append(deck.dealone())
+
+    # each 'hand' is a string is like 'T♡J♠'. deal the first card to everyone,
+    # then the second.
+    for hand in hands_wanted:
+        addcard(cards.card.fromstring(hand[:2]))
+    for hand in hands_wanted:
+        addcard(cards.card.fromstring(hand[2:]))
+
+    # upcards_wanted looks like '7♠8♡9♠2♠7♣'
+    upcards = [cards.card.fromstring(upcards_wanted[x:x+2])
+               for x in range(0, len(upcards_wanted), 2)]
+
+    addcard()  # burn
+    # flop
+    for i in range(3):
+        addcard(upcards[i])
+    addcard()  # burn
+    addcard(upcards[3])  # turn
+    addcard()  # burn
+    addcard(upcards[4])  # river
+
+    # add the remaining cards from the deck
+    while True:
+        try:
+            addcard(deck.dealone())
+        except cards.DeckEmptyError:
+            break
+
+    return cardlist
 
 
 class HoldEmTest(unittest.TestCase):
@@ -10,14 +56,17 @@ class HoldEmTest(unittest.TestCase):
         callback = mock.MagicMock()
         game = holdem.HoldEm([str(i) for i in range(3)], callback)
 
+        # deal; post the blinds
         game.deal()
         self.assertEqual(game.pot, 3)
+        self.assertEqual(len(game.upcards), 0)
         callback.assert_has_calls([
             mock.call('small_blind', 1, holdem.HoldEm.small_blind),
             mock.call('big_blind', 2, holdem.HoldEm.big_blind),
             mock.call('next_to_act', 0, 2)])
         callback.reset_mock()
 
+        # blinds were player 1 and 2; player 0 calls
         game.putmoneyin(2)
         self.assertEqual(game.pot, 5)
         callback.assert_has_calls([
@@ -25,6 +74,7 @@ class HoldEmTest(unittest.TestCase):
             mock.call('next_to_act', 1, 1)])
         callback.reset_mock()
 
+        # player 1 (small blind) folds.  only players 0 and 2 are left.
         game.fold()
         self.assertEqual(game.pot, 5)
         callback.assert_has_calls([
@@ -32,14 +82,18 @@ class HoldEmTest(unittest.TestCase):
             mock.call('option', 2, 0)])
         callback.reset_mock()
 
+        # player 2 has the option; check. deal the flop.
+        self.assertEqual(len(game.upcards), 0)
         game.putmoneyin(0)
         self.assertEqual(game.pot, 5)
+        self.assertEqual(len(game.upcards), 3)
         callback.assert_has_calls([
             mock.call('check', 2, 0),
             mock.call('flop'),
             mock.call('next_to_act', 2, 0)])
         callback.reset_mock()
 
+        # player 2 is first to act.  bet.
         game.putmoneyin(2)
         self.assertEqual(game.pot, 7)
         callback.assert_has_calls([
@@ -47,14 +101,17 @@ class HoldEmTest(unittest.TestCase):
             mock.call('next_to_act', 0, 2)])
         callback.reset_mock()
 
+        # player 0 calls. deal the turn.
         game.putmoneyin(2)
         self.assertEqual(game.pot, 9)
+        self.assertEqual(len(game.upcards), 4)
         callback.assert_has_calls([
             mock.call('call', 0, 2),
             mock.call('turn'),
             mock.call('next_to_act', 2, 0)])
         callback.reset_mock()
 
+        # player 2 checks
         game.putmoneyin(0)
         self.assertEqual(game.pot, 9)
         callback.assert_has_calls([
@@ -62,14 +119,17 @@ class HoldEmTest(unittest.TestCase):
             mock.call('next_to_act', 0, 0)])
         callback.reset_mock()
 
+        # player 0 checks. deal the river.
         game.putmoneyin(0)
         self.assertEqual(game.pot, 9)
+        self.assertEqual(len(game.upcards), 5)
         callback.assert_has_calls([
             mock.call('check', 0, 0),
             mock.call('river'),
             mock.call('next_to_act', 2, 0)])
         callback.reset_mock()
 
+        # player 2 is first to act. bet.
         game.putmoneyin(2)
         self.assertEqual(game.pot, 11)
         callback.assert_has_calls([
@@ -77,6 +137,7 @@ class HoldEmTest(unittest.TestCase):
             mock.call('next_to_act', 0, 2)])
         callback.reset_mock()
 
+        # player 0 raises.
         game.putmoneyin(4)
         self.assertEqual(game.pot, 15)
         callback.assert_has_calls([
@@ -84,6 +145,7 @@ class HoldEmTest(unittest.TestCase):
             mock.call('next_to_act', 2, 2)])
         callback.reset_mock()
 
+        # player 2 folds -- player 0 wins.
         game.fold()
         self.assertEqual(game.pot, 15)
         callback.assert_has_calls([
@@ -92,8 +154,152 @@ class HoldEmTest(unittest.TestCase):
             mock.call('end')])
         callback.reset_mock()
 
+        # make sure the player banks are updated correctly.  by default the
+        # banks start at 0.
+        self.assertEqual(game.get_player(0).bank, 7)
+        self.assertEqual(game.get_player(1).bank, -1)
+        self.assertEqual(game.get_player(2).bank, -6)
+
+        # start another hand; make sure the button moved.
+        game.deal()
+        self.assertEqual(game.pot, 3)
+        self.assertEqual(len(game.upcards), 0)
+        callback.assert_has_calls([
+            mock.call('small_blind', 2, holdem.HoldEm.small_blind),
+            mock.call('big_blind', 0, holdem.HoldEm.big_blind),
+            mock.call('next_to_act', 1, 2)])
+        callback.reset_mock()
+
     def test_showdown(self):
-        pass
+        # here are the hands I want to have
+        hands = [
+            # straight, flush, full house.  Note that this is the order that
+            # the hands will come out of the deck after the button, so the
+            # order is actually p1, p2, p0 (button)
+            'T♡J♠', 'A♠T♠', '7♡8♢'
+        ]
+
+        # and here's what I want to show up on the table
+        upcards = '7♠8♡9♠2♠7♣'
+
+        callback = mock.MagicMock()
+        game = holdem.HoldEm([str(i) for i in range(3)], callback)
+
+        # stack the deck
+        stacked_deck = create_stacked_deck(hands, upcards)
+        game.deck.deck = stacked_deck
+        game.deck.shuffle = mock.MagicMock()
+
+        # have the best hand fold, to test to make sure that he's not
+        # considered in the showdown.
+        game.deal()
+
+        def strhand(h):
+            return ''.join(str(c) for c in h.cards)
+
+        # make sure the stacked deck worked.  note hand order p1/p2/p0
+        self.assertEqual(strhand(game.players[0].hand), hands[2])
+        self.assertEqual(strhand(game.players[1].hand), hands[0])
+        self.assertEqual(strhand(game.players[2].hand), hands[1])
+
+        # pre-flop
+        game.putmoneyin(2)
+        game.putmoneyin(1)
+        game.putmoneyin(0)
+        # flop
+        game.putmoneyin(2)
+        game.putmoneyin(2)
+        game.putmoneyin(2)
+        # turn
+        game.putmoneyin(0)
+        game.putmoneyin(2)
+        game.putmoneyin(2)
+        game.putmoneyin(2)
+        # river
+        game.putmoneyin(2)  # player 1 bets (straight)
+        game.putmoneyin(2)  # player 2 calls (flush)
+        game.fold()         # player 0 folds (full house)
+
+        callback.assert_has_calls([
+            mock.call('small_blind', 1, holdem.HoldEm.small_blind),
+            mock.call('big_blind', 2, holdem.HoldEm.big_blind),
+            # pre-flop
+            mock.call('next_to_act', 0, 2),
+            mock.call('call', 0, 2),
+            mock.call('next_to_act', 1, 1),
+            mock.call('call', 1, 1),
+            mock.call('option', 2, 0),
+            mock.call('check', 2, 0),
+            # flop
+            mock.call('flop'),
+            mock.call('next_to_act', 1, 0),
+            mock.call('bet', 1, 2),
+            mock.call('next_to_act', 2, 2),
+            mock.call('call', 2, 2),
+            mock.call('next_to_act', 0, 2),
+            mock.call('call', 0, 2),
+            # turn
+            mock.call('turn'),
+            mock.call('next_to_act', 1, 0),
+            mock.call('check', 1, 0),
+            mock.call('next_to_act', 2, 0),
+            mock.call('bet', 2, 2),
+            mock.call('next_to_act', 0, 2),
+            mock.call('call', 0, 2),
+            mock.call('next_to_act', 1, 2),
+            mock.call('call', 1, 2),
+            # river
+            mock.call('river'),
+            mock.call('next_to_act', 1, 0),
+            mock.call('bet', 1, 2),
+            mock.call('next_to_act', 2, 2),
+            mock.call('call', 2, 2),
+            mock.call('next_to_act', 0, 2),
+            mock.call('fold', 0),
+            # showdown
+            mock.call('showdown'),
+            mock.call('win', 2, 22),
+            mock.call('end')
+        ])
 
     def test_split_pot(self):
-        pass
+        # split a hand among three of the four players.  remember again the
+        # deal order: p1/p2/p3/p0
+        hands = ['K♡J♠', 'K♠T♡', '7♡8♢', '8♡K♢']
+        upcards = 'A♠A♡Q♠2♠A♣'
+        callback = mock.MagicMock()
+        game = holdem.HoldEm([str(i) for i in range(4)], callback)
+
+        # stack the deck
+        stacked_deck = create_stacked_deck(hands, upcards)
+        game.deck.deck = stacked_deck
+        game.deck.shuffle = mock.MagicMock()
+
+        # just because it's a lot I'm going to skip checking the callbacks
+        # until the end.
+        game.deal()
+        game.putmoneyin(2)
+        game.putmoneyin(2)
+        game.putmoneyin(1)
+        game.putmoneyin(0)  # option
+        # flop
+        for i in range(4):
+            game.putmoneyin(0)
+        # turn. bet/call just to mix things up.
+        for i in range(4):
+            game.putmoneyin(2)
+        # river. hold off on the last one so that we can check the callbacks.
+        for i in range(3):
+            game.putmoneyin(0)
+
+        callback.reset_mock()
+        game.putmoneyin(0)
+        callback.assert_has_calls([
+            mock.call('check', 0, 0),
+            mock.call('showdown'),
+            mock.call('split_pot'),
+            mock.call('win', 1, 6),
+            mock.call('win', 2, 5),
+            mock.call('win', 0, 5),
+            mock.call('end')
+        ])
