@@ -32,7 +32,7 @@ class HoldEm:
         self.winners = None
         self.callback = callback
         self.playing_blinds = False
-        self.deck = cards.deck()
+        self.deck = cards.Deck()
 
     def nextfrom(self, i, increment=1):
         return (i+increment) % len(self.players)
@@ -143,15 +143,16 @@ class HoldEm:
         players = [p for p in self.players if not p.folded]
         for p in players:
             for c in self.upcards:
-                p.hand.addcard(c)
+                p.hand.append(c)
 
         # now find the highest
         highest = [players[0]]
         for p in players[1:]:
-            if p.hand.get_ranking() > highest[0].hand.get_ranking():
+            if ((poker.get_7_card_ranking(p.hand) >
+                 poker.get_7_card_ranking(highest[0].hand))):
                 highest = [p]
-            elif (p.hand.get_ranking() ==
-                  highest[0].hand.get_ranking()):
+            elif (poker.get_7_card_ranking(p.hand) ==
+                  poker.get_7_card_ranking(highest[0].hand)):
                 highest.append(p)
 
         self.callback('showdown')
@@ -166,7 +167,7 @@ class HoldEm:
             self.deck.deal()
 
             cards_to_deal = 1 if self.upcards else 3
-            self.upcards.extend(self.deck.deal(cards_to_deal))
+            self.upcards.extend(self.deck.dealn(cards_to_deal))
 
             self.next_to_act = self.nextfrom_notfolded(self.dealer_button)
 
@@ -197,20 +198,8 @@ class HoldEm:
     def get_player(self, index):
         return self.players[index]
 
-    def get_state(self):
-        d = {'pot': self.pot,
-             'hands': [ps.hand for ps in self.players],
-             'board': self.upcards}
-        if self.winners:
-            d['winners'] = self.winners
-        elif self.next_to_act is not None:
-            ps = self.players[self.next_to_act]
-            amount_owed = (self.total_bet_this_round - ps.bet_this_round)
-            d['action'] = (self.next_to_act, amount_owed)
-        return d
-
-    def deal(self):
-        self.deck.shuffle()
+    def deal(self, deck=None):
+        self.deck = deck or cards.Deck()
 
         self.pot = 0
         self.upcards = []
@@ -218,7 +207,7 @@ class HoldEm:
 
         self.dealer_button = self.nextfrom(self.dealer_button)
         for ps in self.players:
-            ps.hand = poker.hand()
+            ps.hand = cards.Hand()
             ps.folded = False
             ps.bet_this_round = 0
             ps.played_this_round = False
@@ -229,7 +218,7 @@ class HoldEm:
         for i in range(len(self.players)*2):
             # start with the dealer button and rotate
             r = self.nextfrom(self.dealer_button, i+1)
-            self.players[r].hand.addcard(self.deck.dealone())
+            self.players[r].hand.append(self.deck.deal())
 
         # play the blinds
         self.next_to_act = self.nextfrom(self.dealer_button)

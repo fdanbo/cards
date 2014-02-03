@@ -6,49 +6,52 @@ import cards
 import poker.holdem as holdem
 
 
-def create_stacked_deck(hands_wanted, upcards_wanted):
+def create_stacked_deck(hands_wanted_strings, upcards_wanted_string):
     # create an actual deck to pull the cards from; this is so that we don't
     # duplicate cards, and end up with the correct number of cards in the
-    # deck.  It shouldn't matter that they're not shuffled.
-    deck = cards.deck()
+    # deck.
+    unused_cards = cards.Deck(shuffle=False)
 
-    cardlist = []
+    hands_wanted = []
+    for s in hands_wanted_strings:
+        h = cards.Hand(s)
+        hands_wanted.append(h)
+        for c in h:
+            unused_cards.popcard(c.rank, c.suit)
+
+    upcards_wanted = cards.Hand(upcards_wanted_string)
+    for c in upcards_wanted:
+        unused_cards.popcard(c.rank, c.suit)
+
+    newdeck = cards.Deck(deckcount=0)
 
     def addcard(c=None):
         if c:
-            deck.dealspecificcard(c.rank, c.suit)
-            cardlist.append(c)
+            newdeck.append(c)
         else:
-            cardlist.append(deck.dealone())
+            # deal something out of unused_cards
+            c = unused_cards.pop()
+            newdeck.append(c)
 
-    # each 'hand' is a string is like 'T♡J♠'. deal the first card to everyone,
-    # then the second.
     for hand in hands_wanted:
-        addcard(cards.card.fromstring(hand[:2]))
+        addcard(hand[0])
     for hand in hands_wanted:
-        addcard(cards.card.fromstring(hand[2:]))
+        addcard(hand[1])
 
-    # upcards_wanted looks like '7♠8♡9♠2♠7♣'
-    upcards = [cards.card.fromstring(upcards_wanted[x:x+2])
-               for x in range(0, len(upcards_wanted), 2)]
-
-    addcard()  # burn
-    # flop
+    # burn, flop, burn, turn, burn, river.
+    addcard()
     for i in range(3):
-        addcard(upcards[i])
-    addcard()  # burn
-    addcard(upcards[3])  # turn
-    addcard()  # burn
-    addcard(upcards[4])  # river
+        addcard(upcards_wanted.pop())
+    addcard()
+    addcard(upcards_wanted.pop())
+    addcard()
+    addcard(upcards_wanted.pop())
 
     # add the remaining cards from the deck
-    while True:
-        try:
-            addcard(deck.dealone())
-        except cards.DeckEmptyError:
-            break
+    while len(unused_cards):
+        addcard(unused_cards.deal())
 
-    return cardlist
+    return newdeck
 
 
 class HoldEmTest(unittest.TestCase):
@@ -65,6 +68,8 @@ class HoldEmTest(unittest.TestCase):
             mock.call('big_blind', 2, holdem.HoldEm.big_blind),
             mock.call('next_to_act', 0, 2)])
         callback.reset_mock()
+        self.assertEqual(game.get_player_sb(), game.get_player(1))
+        self.assertEqual(game.get_player_bb(), game.get_player(2))
 
         # blinds were player 1 and 2; player 0 calls
         game.putmoneyin(2)
@@ -168,6 +173,8 @@ class HoldEmTest(unittest.TestCase):
             mock.call('small_blind', 2, holdem.HoldEm.small_blind),
             mock.call('big_blind', 0, holdem.HoldEm.big_blind),
             mock.call('next_to_act', 1, 2)])
+        self.assertEqual(game.get_player_sb(), game.get_player(2))
+        self.assertEqual(game.get_player_bb(), game.get_player(0))
         callback.reset_mock()
 
     def test_showdown(self):
@@ -187,20 +194,15 @@ class HoldEmTest(unittest.TestCase):
 
         # stack the deck
         stacked_deck = create_stacked_deck(hands, upcards)
-        game.deck.deck = stacked_deck
-        game.deck.shuffle = mock.MagicMock()
 
         # have the best hand fold, to test to make sure that he's not
         # considered in the showdown.
-        game.deal()
-
-        def strhand(h):
-            return ''.join(str(c) for c in h.cards)
+        game.deal(deck=stacked_deck)
 
         # make sure the stacked deck worked.  note hand order p1/p2/p0
-        self.assertEqual(strhand(game.players[0].hand), hands[2])
-        self.assertEqual(strhand(game.players[1].hand), hands[0])
-        self.assertEqual(strhand(game.players[2].hand), hands[1])
+        self.assertEqual(str(game.players[0].hand), hands[2])
+        self.assertEqual(str(game.players[1].hand), hands[0])
+        self.assertEqual(str(game.players[2].hand), hands[1])
 
         # pre-flop
         game.putmoneyin(2)
@@ -270,14 +272,11 @@ class HoldEmTest(unittest.TestCase):
         callback = mock.MagicMock()
         game = holdem.HoldEm([str(i) for i in range(4)], callback)
 
-        # stack the deck
         stacked_deck = create_stacked_deck(hands, upcards)
-        game.deck.deck = stacked_deck
-        game.deck.shuffle = mock.MagicMock()
 
         # just because it's a lot I'm going to skip checking the callbacks
         # until the end.
-        game.deal()
+        game.deal(stacked_deck)
         game.putmoneyin(2)
         game.putmoneyin(2)
         game.putmoneyin(1)
@@ -293,6 +292,7 @@ class HoldEmTest(unittest.TestCase):
             game.putmoneyin(0)
 
         callback.reset_mock()
+
         game.putmoneyin(0)
         callback.assert_has_calls([
             mock.call('check', 0, 0),

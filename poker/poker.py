@@ -6,7 +6,7 @@ import itertools
 
 
 @functools.total_ordering
-class ranking():
+class Ranking():
     high_card = 1
     one_pair = 2
     two_pair = 3
@@ -17,122 +17,119 @@ class ranking():
     four_of_a_kind = 8
     straight_flush = 9
 
-    # ranking is one of the constants above.  high_card_indices is a list of
-    # integers that should be considered to further rank the hand, in that
-    # order.  because they're integers, aces should come in as 14 -- and if you
-    # have a 5-high straight, only a 5 should appear.
-    def __init__(self, ranking, high_card_indices):
+    # ranking is one of the constants above, and high_cards is an iterable of
+    # ranks of cards to compare, in that order.  eg for JJ44K high_cards is
+    # J4K.
+    def __init__(self, ranking, high_cards):
         self.ranking = ranking
-        self.high_card_indices = list(high_card_indices)
+        self.high_cards = list(high_cards)
 
     def __eq__(self, rhs):
         return (self.ranking == rhs.ranking and
-                self.high_card_indices == rhs.high_card_indices)
+                self.high_cards == rhs.high_cards)
 
     def __lt__(self, rhs):
         if self.ranking < rhs.ranking:
             return True
         elif self.ranking == rhs.ranking:
-            return self.high_card_indices < rhs.high_card_indices
+            # convert the rank strings into a 2-14 integer for ordering.  We
+            # didn't have to do this above, since equality works perfectly well
+            # for the rank string.
+            hc1 = [cards.AceHighIndex(r) for r in self.high_cards]
+            hc2 = [cards.AceHighIndex(r) for r in rhs.high_cards]
+            return hc1 < hc2
         else:
             return False
 
     def __repr__(self):
-        ranks = [cards.index_to_rank(i) for i in self.high_card_indices]
+        if self.ranking == Ranking.high_card:
+            desc = '{} high'.format(*self.high_cards)
+        if self.ranking == Ranking.one_pair:
+            desc = 'pair of {}s'.format(*self.high_cards)
+        if self.ranking == Ranking.two_pair:
+            desc = 'two pair, {}s and {}s'.format(*self.high_cards)
+        if self.ranking == Ranking.three_of_a_kind:
+            desc = 'three {}s'.format(*self.high_cards)
+        if self.ranking == Ranking.straight:
+            desc = '{}-high straight'.format(*self.high_cards)
+        if self.ranking == Ranking.flush:
+            desc = '{}-high flush'.format(*self.high_cards)
+        if self.ranking == Ranking.full_house:
+            desc = 'full house, {}s over {}s'.format(*self.high_cards)
+        if self.ranking == Ranking.four_of_a_kind:
+            desc = 'four {}s'.format(*self.high_cards)
+        if self.ranking == Ranking.straight_flush:
+            desc = '{}-high straight flush'.format(*self.high_cards)
 
-        if self.ranking == ranking.high_card:
-            desc = '{} high'.format(ranks[0])
-        if self.ranking == ranking.one_pair:
-            desc = 'pair of {}s'.format(ranks[0])
-        if self.ranking == ranking.two_pair:
-            desc = 'two pair, {}s and {}s'.format(ranks[0], ranks[1])
-        if self.ranking == ranking.three_of_a_kind:
-            desc = 'three {}s'.format(ranks[0])
-        if self.ranking == ranking.straight:
-            desc = '{}-high straight'.format(ranks[0])
-        if self.ranking == ranking.flush:
-            desc = '{}-high flush'.format(ranks[0])
-        if self.ranking == ranking.full_house:
-            desc = 'full house, {}s over {}s'.format(ranks[0], ranks[1])
-        if self.ranking == ranking.four_of_a_kind:
-            desc = 'four {}s'.format(ranks[0])
-        if self.ranking == ranking.straight_flush:
-            desc = '{}-high straight flush'.format(ranks[0])
-
-        return '{} [{}]'.format(desc, ''.join(
-            [cards.index_to_rank(i) for i in self.high_card_indices]))
+        return '{} [{}]'.format(desc, ''.join(self.high_cards))
 
 
-STRAIGHT_RANKSTRINGS = frozenset(['A2345', '23456', '34567', '45678', '56789',
-                                  '6789T', '789TJ', '89TJQ', '9TJQK', 'TJQKA'])
+STRAIGHT_STRINGS = frozenset(['A2345', '23456', '34567', '45678', '56789',
+                              '6789T', '789TJ', '89TJQ', '9TJQK', 'TJQKA'])
 
 
-def sort_by_index(ranks):
-    return sorted([cards.ace_high_index(r) for r in ranks],
-                  reverse=True)
-
-
-def get_5_card_ranking(cardlist):
-    assert len(cardlist) == 5
+def get_5_card_ranking(hand):
+    assert len(hand) == 5
 
     # sort the cards by rank, with ace being high
-    cardlist = sorted(cardlist, key=lambda c: c.ace_high_index())
-    rankstring = ''.join(c.rank for c in cardlist)
+    hand.sort(key=cards.RankFirstOrderings.AceHigh)
+    rankstring = ''.join(c.rank for c in hand)
 
     # special case: if we have 2345A, reorder to A2345
     if rankstring == '2345A':
-        cardlist.insert(0, cardlist.pop())
-        rankstring = 'A2345'
+        hand.insert(0, hand.pop(-1))
+        rankstring = ''.join(c.rank for c in hand)
+        assert rankstring == 'A2345'
 
-    is_flush = len(set(c.suit for c in cardlist)) <= 1
-    is_straight = rankstring in STRAIGHT_RANKSTRINGS
+    is_flush = len(set(c.suit for c in hand)) <= 1
+    is_straight = rankstring in STRAIGHT_STRINGS
 
     # CHECK FOR STRAIGHT FLUSH
     if is_flush and is_straight:
-        highindex = cardlist[-1].ace_high_index()
-        return ranking(ranking.straight_flush, [highindex])
+        return Ranking(Ranking.straight_flush, [hand[-1].rank])
 
     # count number of cards of each rank
-    counts = collections.Counter(c.rank for c in cardlist)
+    counts = collections.Counter(c.rank for c in hand)
 
     sorted_counts = counts.most_common()
     most_rank, most_count = sorted_counts[0]
     assert most_count < 5
 
+    # for the purpose of ranking, we sort in reverse order, so that kickers
+    # compare as something like 'AT94' not '49TA'.  Note that we never call
+    # sorted_by_rank in the case of a straight, since aces can be low in that
+    # case -- this is just for kickers for pairs and such.
+    def sorted_by_rank(l):
+        return sorted(l, key=cards.AceHighIndex, reverse=True)
+
     # CHECK FOR FOUR OF A KIND
     if most_count == 4:
         # we have a four of a kind
-        highindex = cards.ace_high_index(most_rank)
         assert len(sorted_counts) == 2
         next_rank, next_count = sorted_counts[1]
         assert next_count == 1
-        kicker = cards.ace_high_index(next_rank)
-        return ranking(ranking.four_of_a_kind, [highindex, kicker])
+        return Ranking(Ranking.four_of_a_kind, [most_rank, next_rank])
 
     # CHECK FOR FULL HOUSE
     if most_count == 3 and len(sorted_counts) == 2:
-        highindex = cards.ace_high_index(most_rank)
         next_rank, next_count = sorted_counts[1]
         assert next_count == 2
-        kicker = cards.ace_high_index(next_rank)
-        return ranking(ranking.full_house, [highindex, kicker])
+        return Ranking(Ranking.full_house, [most_rank, next_rank])
 
     # CHECK FOR FLUSH
     if is_flush:
-        highindices = reversed([c.ace_high_index() for c in cardlist])
-        return ranking(ranking.flush, highindices)
+        ranks = reversed([c.rank for c in hand])
+        return Ranking(Ranking.flush, ranks)
 
     # CHECK FOR STRAIGHT
     if is_straight:
-        highindex = cardlist[-1].ace_high_index()
-        return ranking(ranking.straight, [highindex])
+        return Ranking(Ranking.straight, [hand[-1].rank])
 
     # CHECK FOR THREE-OF-A-KIND
     if most_count == 3:
-        highindex = cards.ace_high_index(most_rank)
-        kickers = sort_by_index(r for r, c in sorted_counts[1:])
+        kickers = sorted_by_rank(r for r, c in sorted_counts[1:])
         assert len(kickers) == 2
-        return ranking(ranking.three_of_a_kind, [highindex] + kickers)
+        return Ranking(Ranking.three_of_a_kind, [most_rank] + kickers)
 
     # CHECK FOR ONE OR TWO PAIRS
     if most_count == 2:
@@ -140,28 +137,27 @@ def get_5_card_ranking(cardlist):
         if next_count == 2:
             # two pair
             assert len(sorted_counts) == 3
-            highindices = sort_by_index([most_rank, next_rank])
+            pair_cards = sorted_by_rank([most_rank, next_rank])
             kicker_rank, kicker_count = sorted_counts[2]
             assert kicker_count == 1
-            kicker = cards.ace_high_index(kicker_rank)
-            return ranking(ranking.two_pair, highindices + [kicker])
+            return Ranking(Ranking.two_pair, pair_cards + [kicker_rank])
         else:
             # one pair
             assert len(sorted_counts) == 4
-            highindex = cards.ace_high_index(most_rank)
-            kickers = sort_by_index(r for r, c in sorted_counts[1:])
-            return ranking(ranking.one_pair, [highindex] + kickers)
+            kickers = sorted_by_rank(r for r, c in sorted_counts[1:])
+            return Ranking(Ranking.one_pair, [most_rank] + kickers)
 
     # otherwise, we have a high card
     assert len(sorted_counts) == 5
-    return ranking(ranking.high_card,
-                   reversed([c.ace_high_index() for c in cardlist]))
+    return Ranking(Ranking.high_card,
+                   sorted_by_rank(c.rank for c in hand))
 
 
-def get_7_card_ranking(cardlist):
+def get_7_card_ranking(hand):
     best_so_far = None
-    for _5cards in itertools.combinations(cardlist, 5):
-        ranking = get_5_card_ranking(_5cards)
+    for _5cards in itertools.combinations(hand[:], 5):
+        _5card_hand = cards.Hand(_5cards)
+        ranking = get_5_card_ranking(_5card_hand)
         if best_so_far is None or (ranking > best_so_far):
             best_so_far = ranking
     return best_so_far
