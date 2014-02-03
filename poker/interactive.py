@@ -3,6 +3,7 @@ import cmd
 import random
 
 import poker.holdem as holdem
+from poker.poker import get_7_card_ranking
 
 
 class InvalidMove(Exception):
@@ -69,8 +70,8 @@ class HoldEmInterpreter(cmd.Cmd):
             for ps in self.holdem.players:
                 if not ps.folded:
                     self.stdout.write('{} had [{} {} ] -- {}\n'.format(
-                        ps.name, ps.hand.cards[0], ps.hand.cards[1],
-                        ps.hand.get_ranking()
+                        ps.name, ps.hand[0], ps.hand[1],
+                        get_7_card_ranking(ps.hand)
                     ))
         elif event == 'split_pot':
             # we'll get a separate 'win' callback for each
@@ -88,8 +89,8 @@ class HoldEmInterpreter(cmd.Cmd):
         self.stdout.write('\n')
         return True
 
-    def ai_action(self, state):
-        next_to_act, amount_owed = state['action']
+    def ai_action(self):
+        amount_owed = self.holdem.get_amount_owed()
         if amount_owed > 0:
             # call most of the time
             possible_moves = ['fold', 'call', 'call', 'call', 'raise']
@@ -97,14 +98,14 @@ class HoldEmInterpreter(cmd.Cmd):
             # check most of the time
             possible_moves = ['check', 'check', 'check', 'bet']
         move = random.choice(possible_moves)
-        self.perform_move(state, move)
+        self.perform_move(move)
 
-    def perform_move(self, state, move):
-        try:
-            next_to_act, amount_owed = state['action']
-        except KeyError:
+    def perform_move(self, move):
+        if self.holdem.next_to_act is None:
             self.stdout.write('no move is currently allowed. try "deal".\n')
             raise InvalidMove
+
+        amount_owed = self.holdem.get_amount_owed()
 
         if move == 'fold':
             self.holdem.fold()
@@ -121,17 +122,15 @@ class HoldEmInterpreter(cmd.Cmd):
 
     def act_until_player_turn(self):
         while True:
-            state = self.holdem.get_state()
-            if state.get('winners'):
+            if self.holdem.winners is not None:
                 break
             else:
-                action, amount_owed = state['action']
-                if action != 0:
-                    self.ai_action(state)
+                if self.holdem.next_to_act > 0:
+                    self.ai_action()
                 else:
                     self.stdout.write('You have: [{} {} ]\n'.format(
-                        self.holdem.players[0].hand.cards[0],
-                        self.holdem.players[0].hand.cards[1],
+                        self.holdem.players[0].hand[0],
+                        self.holdem.players[0].hand[1],
                     ))
                     break
 
@@ -143,10 +142,8 @@ class HoldEmInterpreter(cmd.Cmd):
         self.act_until_player_turn()
 
     def default(self, line):
-        state = self.holdem.get_state()
-
         try:
-            self.perform_move(state, line)
+            self.perform_move(line)
         except holdem.MoveNotAllowed:
             self.stdout.write('move not allowed: {}\n'.format(line))
         except InvalidMove:

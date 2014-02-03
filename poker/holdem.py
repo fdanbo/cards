@@ -77,6 +77,11 @@ class HoldEm:
 
         self.on_turn_completed()
 
+    def get_amount_owed(self):
+        ps = self.players[self.next_to_act]
+        amount_owed = (self.total_bet_this_round - ps.bet_this_round)
+        return amount_owed
+
     def fold(self):
         ps = self.players[self.next_to_act]
         ps.folded = True

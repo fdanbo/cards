@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
 from poker.interactive import HoldEmInterpreter
-from poker.poker import ranking
+from poker.poker import Ranking
+from poker.poker import get_7_card_ranking
 
 
 def main():
@@ -52,8 +53,8 @@ def test_straight_flush():
         if event == 'showdown':
             for ps in interpreter.holdem.players:
                 if not ps.folded:
-                    if ((ps.hand.get_ranking().ranking ==
-                         ranking.straight_flush)):
+                    if ((get_7_card_ranking(ps.hand).ranking ==
+                         Ranking.straight_flush)):
                         signal[0] = False
 
     interpreter.holdem.callback = callback
