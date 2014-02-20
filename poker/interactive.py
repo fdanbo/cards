@@ -10,6 +10,10 @@ class InvalidMove(Exception):
     pass
 
 
+class DealRequired(Exception):
+    pass
+
+
 class HoldEmInterpreter(cmd.Cmd):
     prompt = '> '
 
@@ -20,67 +24,90 @@ class HoldEmInterpreter(cmd.Cmd):
         self.holdem = holdem.HoldEm(playernames, self.holdem_callback)
 
     def holdem_callback(self, event, playerindex=None, amount=None):
+        player_state = None
         if playerindex is not None:
-            ps = self.holdem.get_player(playerindex)
-        if event == 'small_blind':
-            self.stdout.write('{} posts the small blind ({})\n'.format(
-                ps.name, amount))
-        elif event == 'big_blind':
-            self.stdout.write('{} posts the big blind ({})\n'.format(
-                ps.name, amount))
-        elif event == 'check':
-            self.stdout.write('{} checks.\n'.format(ps.name))
-        elif event == 'bet':
-            self.stdout.write('{} bets {}.\n'.format(ps.name, amount))
-        elif event == 'call':
-            self.stdout.write('{} calls {}.\n'.format(ps.name, amount))
-        elif event == 'raise':
-            self.stdout.write('{} raises {} to {}.\n'.format(
-                ps.name, amount, self.holdem.total_bet_this_round
-            ))
-        elif event == 'fold':
-            self.stdout.write('{} folds.\n'.format(ps.name))
-        elif event == 'next_to_act':
-            if amount > 0:
-                self.stdout.write('Action to {}; {} to call\n'.format(
-                    ps.name, amount))
-            else:
-                self.stdout.write('Action to {}.\n'.format(ps.name))
-        elif event == 'option':
-            self.stdout.write('Option to {}.\n'.format(ps.name))
-        elif event == 'flop':
-            self.stdout.write('--------------------------------------------\n')
-            self.stdout.write('DEALING THE FLOP!\n')
-            board = ' '.join([str(card) for card in self.holdem.upcards])
-            self.stdout.write('[{} ]\n'.format(board))
-        elif event == 'turn':
-            self.stdout.write('--------------------------------------------\n')
-            self.stdout.write('DEALING THE TURN!\n')
-            board = ' '.join([str(card) for card in self.holdem.upcards])
-            self.stdout.write('[{} ]\n'.format(board))
-        elif event == 'river':
-            self.stdout.write('--------------------------------------------\n')
-            self.stdout.write('DEALING THE RIVER!\n')
-            board = ' '.join([str(card) for card in self.holdem.upcards])
-            self.stdout.write('[{} ]\n'.format(board))
-        elif event == 'showdown':
-            self.stdout.write('--------------------------------------------\n')
-            self.stdout.write('SHOWDOWN!\n')
-            # show what everyone had
-            for ps in self.holdem.players:
-                if not ps.folded:
-                    self.stdout.write('{} had [{} {} ] -- {}\n'.format(
-                        ps.name, ps.hand[0], ps.hand[1],
-                        get_7_card_ranking(ps.hand)
-                    ))
-        elif event == 'split_pot':
-            # we'll get a separate 'win' callback for each
-            self.stdout.write('split pot! total pot: {}\n'.
-                              format(self.holdem.pot))
-        elif event == 'win':
-            self.stdout.write('{} wins {}!\n'.format(ps.name, amount))
-        elif event == 'end':
-            self.stdout.write('--------------------------------------------\n')
+            player_state = self.holdem.get_player(playerindex)
+        try:
+            handler = getattr(self, 'event_{}'.format(event))
+            handler(player_state, amount)
+        except AttributeError:
+            # an event that we don't have a handler for
+            pass
+
+    def event_small_blind(self, player_state, amount):
+        self.stdout.write('{} posts the small blind ({})\n'.format(
+            player_state.name, amount))
+
+    def event_big_blind(self, player_state, amount):
+        self.stdout.write('{} posts the big blind ({})\n'.format(
+            player_state.name, amount))
+
+    def event_check(self, player_state, amount):
+        self.stdout.write('{} checks.\n'.format(player_state.name))
+
+    def event_bet(self, player_state, amount):
+        self.stdout.write('{} bets {}.\n'.format(player_state.name, amount))
+
+    def event_call(self, player_state, amount):
+        self.stdout.write('{} calls {}.\n'.format(player_state.name, amount))
+
+    def event_raise(self, player_state, amount):
+        self.stdout.write('{} raises {} to {}.\n'.format(
+            player_state.name, amount, self.holdem.total_bet_this_round
+        ))
+
+    def event_fold(self, player_state, amount):
+        self.stdout.write('{} folds.\n'.format(player_state.name))
+
+    def event_next_to_act(self, player_state, amount):
+        if amount > 0:
+            self.stdout.write('Action to {}; {} to call\n'.format(
+                player_state.name, amount))
+        else:
+            self.stdout.write('Action to {}.\n'.format(player_state.name))
+
+    def event_option(self, player_state, amount):
+        self.stdout.write('Option to {}.\n'.format(player_state.name))
+
+    def event_flop(self, player_state, amount):
+        self.stdout.write('--------------------------------------------\n')
+        self.stdout.write('DEALING THE FLOP!\n')
+        board = ' '.join([str(card) for card in self.holdem.upcards])
+        self.stdout.write('[{} ]\n'.format(board))
+
+    def event_turn(self, player_state, amount):
+        self.stdout.write('--------------------------------------------\n')
+        self.stdout.write('DEALING THE TURN!\n')
+        board = ' '.join([str(card) for card in self.holdem.upcards])
+        self.stdout.write('[{} ]\n'.format(board))
+
+    def event_river(self, player_state, amount):
+        self.stdout.write('--------------------------------------------\n')
+        self.stdout.write('DEALING THE RIVER!\n')
+        board = ' '.join([str(card) for card in self.holdem.upcards])
+        self.stdout.write('[{} ]\n'.format(board))
+
+    def event_showdown(self, player_state, amount):
+        self.stdout.write('--------------------------------------------\n')
+        self.stdout.write('SHOWDOWN!\n')
+        # show what everyone had
+        for ps in self.holdem.players:
+            if not ps.folded:
+                self.stdout.write('{} had [{} {} ] -- {}\n'.format(
+                    ps.name, ps.hand[0], ps.hand[1],
+                    get_7_card_ranking(ps.hand)
+                ))
+
+    def event_split_pot(self, player_state, amount):
+        # we'll get a separate 'win' callback for each
+        self.stdout.write('split pot! total pot: {}\n'.
+                          format(self.holdem.pot))
+
+    def event_win(self, player_state, amount):
+        self.stdout.write('{} wins {}!\n'.format(player_state.name, amount))
+
+    def event_end(self, player_state, amount):
+        self.stdout.write('--------------------------------------------\n')
 
     def emptyline(self):
         return False
@@ -102,8 +129,7 @@ class HoldEmInterpreter(cmd.Cmd):
 
     def perform_move(self, move):
         if self.holdem.next_to_act is None:
-            self.stdout.write('no move is currently allowed. try "deal".\n')
-            raise InvalidMove
+            raise DealRequired
 
         amount_owed = self.holdem.get_amount_owed()
 
@@ -146,6 +172,8 @@ class HoldEmInterpreter(cmd.Cmd):
             self.perform_move(line)
         except holdem.MoveNotAllowed:
             self.stdout.write('move not allowed: {}\n'.format(line))
+        except DealRequired:
+            self.stdout.write('no move is currently allowed. try "deal".\n')
         except InvalidMove:
             self.stdout.write('unknown move: {}\n'.format(line))
         else:

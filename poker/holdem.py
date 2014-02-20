@@ -219,6 +219,8 @@ class HoldEm:
 
         self.total_bet_this_round = 0
 
+        self.callback('deal')
+
         # deal two cards to each player
         for i in range(len(self.players)*2):
             # start with the dealer button and rotate
