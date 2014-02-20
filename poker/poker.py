@@ -44,21 +44,21 @@ class Ranking():
     def __repr__(self):
         if self.ranking == Ranking.high_card:
             desc = '{} high'.format(*self.high_cards)
-        if self.ranking == Ranking.one_pair:
+        elif self.ranking == Ranking.one_pair:
             desc = 'pair of {}s'.format(*self.high_cards)
-        if self.ranking == Ranking.two_pair:
+        elif self.ranking == Ranking.two_pair:
             desc = 'two pair, {}s and {}s'.format(*self.high_cards)
-        if self.ranking == Ranking.three_of_a_kind:
+        elif self.ranking == Ranking.three_of_a_kind:
             desc = 'three {}s'.format(*self.high_cards)
-        if self.ranking == Ranking.straight:
+        elif self.ranking == Ranking.straight:
             desc = '{}-high straight'.format(*self.high_cards)
-        if self.ranking == Ranking.flush:
+        elif self.ranking == Ranking.flush:
             desc = '{}-high flush'.format(*self.high_cards)
-        if self.ranking == Ranking.full_house:
+        elif self.ranking == Ranking.full_house:
             desc = 'full house, {}s over {}s'.format(*self.high_cards)
-        if self.ranking == Ranking.four_of_a_kind:
+        elif self.ranking == Ranking.four_of_a_kind:
             desc = 'four {}s'.format(*self.high_cards)
-        if self.ranking == Ranking.straight_flush:
+        elif self.ranking == Ranking.straight_flush:
             desc = '{}-high straight flush'.format(*self.high_cards)
 
         return '{} [{}]'.format(desc, ''.join(self.high_cards))
@@ -154,6 +154,9 @@ def get_5_card_ranking(hand):
 
 
 def get_7_card_ranking(hand):
+    # TODO: there's a much more efficient way to do this than checking every
+    # possible combination, particularly if there are more than 7 cards.  but
+    # this works well enough, I might never change it.
     best_so_far = None
     for _5cards in itertools.combinations(hand[:], 5):
         _5card_hand = cards.Hand(_5cards)
