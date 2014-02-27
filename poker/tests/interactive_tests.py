@@ -43,9 +43,9 @@ class InteractiveTest(unittest.TestCase):
 
         interpreter.stdout = old_stdout
         interpreter.onecmd('deal')
-        interpreter.onecmd('bet')
 
-        # cannot check after someone bets
+        # cannot check when you owe money.  this works because the player is
+        # p0, and p1 and p2 are the small and big blinds, respectively.
         interpreter.stdout = StringIO()
         interpreter.onecmd('check')
         self.assertEqual(interpreter.stdout.getvalue(),
