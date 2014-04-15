@@ -3,6 +3,7 @@ import cmd
 import random
 
 import poker.holdem as holdem
+from poker.ai import HoldEmAI
 from poker.poker import get_7_card_ranking
 
 
@@ -13,26 +14,25 @@ class InvalidMove(Exception):
 class DealRequired(Exception):
     pass
 
+PLAYER_NAMES = ['dan-o'] + ['Player {}'.format(i) for i in range(1, 6)]
+
 
 class HoldEmInterpreter(cmd.Cmd):
     prompt = '> '
 
     def __init__(self):
         cmd.Cmd.__init__(self)
-        playernames = ['Player {}'.format(i) for i in range(6)]
-        playernames[0] = 'dan-o'
-        self.holdem = holdem.HoldEm(playernames, self.holdem_callback)
+        ais = [HoldEmAI(name) for name in PLAYER_NAMES]
+        self.holdem = holdem.HoldEm(ais, self.holdem_callback)
 
     def holdem_callback(self, event, playerindex=None, amount=None):
         player_state = None
         if playerindex is not None:
             player_state = self.holdem.get_player(playerindex)
-        try:
+
+        if hasattr(self, 'event_{}'.format(event)):
             handler = getattr(self, 'event_{}'.format(event))
             handler(player_state, amount)
-        except AttributeError:
-            # an event that we don't have a handler for
-            pass
 
     def event_small_blind(self, player_state, amount):
         self.stdout.write('{} posts the small blind ({})\n'.format(

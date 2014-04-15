@@ -4,6 +4,7 @@ import unittest
 
 import cards
 import poker.holdem as holdem
+from poker.ai import HoldEmAI
 
 
 def create_stacked_deck(hands_wanted_strings, upcards_wanted_string):
@@ -57,7 +58,7 @@ def create_stacked_deck(hands_wanted_strings, upcards_wanted_string):
 class HoldEmTest(unittest.TestCase):
     def test_flow(self):
         callback = mock.MagicMock()
-        game = holdem.HoldEm([str(i) for i in range(3)], callback)
+        game = holdem.HoldEm([HoldEmAI(str(i)) for i in range(3)], callback)
 
         # deal; post the blinds
         game.deal()
@@ -190,7 +191,7 @@ class HoldEmTest(unittest.TestCase):
         upcards = '7♠8♡9♠2♠7♣'
 
         callback = mock.MagicMock()
-        game = holdem.HoldEm([str(i) for i in range(3)], callback)
+        game = holdem.HoldEm([HoldEmAI(str(i)) for i in range(3)], callback)
 
         # stack the deck
         stacked_deck = create_stacked_deck(hands, upcards)
@@ -270,7 +271,7 @@ class HoldEmTest(unittest.TestCase):
         hands = ['K♡J♠', 'K♠T♡', '7♡8♢', '8♡K♢']
         upcards = 'A♠A♡Q♠2♠A♣'
         callback = mock.MagicMock()
-        game = holdem.HoldEm([str(i) for i in range(4)], callback)
+        game = holdem.HoldEm([HoldEmAI(str(i)) for i in range(4)], callback)
 
         stacked_deck = create_stacked_deck(hands, upcards)
 

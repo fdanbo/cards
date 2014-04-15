@@ -8,23 +8,27 @@ class MoveNotAllowed(Exception):
 
 
 class PlayerState:
-    def __init__(self, index, name):
+    def __init__(self, index, ai):
+        # static information
         self.index = index
+        self.ai = ai
+        self.name = ai.name
+
+        # game information
         self.bank = 0
         self.bet_this_round = 0
         self.played_this_round = False
         self.folded = False
         self.hand = None
-        self.name = name
 
 
 class HoldEm:
     small_blind = 1
     big_blind = 2
 
-    def __init__(self, playernames, callback):
-        self.players = [PlayerState(i, name)
-                        for i, name in enumerate(playernames)]
+    def __init__(self, ais, callback):
+        self.players = [PlayerState(i, ai)
+                        for i, ai in enumerate(ais)]
         self.dealer_button = -1
         self.pot = 0
         self.upcards = []
@@ -105,6 +109,8 @@ class HoldEm:
             amount_owed = (self.total_bet_this_round -
                            self.players[n].bet_this_round)
             if not self.playing_blinds:
+                print('calling next_to_act callback {} {}'.
+                      format(n, amount_owed))
                 self.callback('next_to_act', n, amount_owed)
         elif (len(self.upcards) == 0 and
               self.players[n] == self.get_player_bb() and
@@ -190,6 +196,8 @@ class HoldEm:
                 self.callback('river')
 
             if not self.playing_blinds:
+                print('calling next_to_act callback {} {}'.
+                      format(self.next_to_act, 0))
                 self.callback('next_to_act', self.next_to_act, 0)
 
     def get_player_bb(self):
@@ -233,4 +241,6 @@ class HoldEm:
         self.putmoneyin(self.small_blind, is_small_blind=True)
         self.putmoneyin(self.big_blind, is_big_blind=True)
         self.playing_blinds = False
+        print('calling next_to_act callback {} {}'.format(self.next_to_act,
+                                                          self.big_blind))
         self.callback('next_to_act', self.next_to_act, self.big_blind)
