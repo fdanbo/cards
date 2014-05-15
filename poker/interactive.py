@@ -212,14 +212,20 @@ class HoldEmInterpreter(cmd.Cmd):
         self.holdem.deal()
         self.act_until_player_turn()
 
+    def do_players(self, line):
+        for player_state in self.holdem.players:
+            self.stdout.write('{}: {}\n'.format(
+                display.name(player_state.name),
+                display.amount(player_state.bank)
+            ))
+
     def default(self, line):
         try:
             self.perform_move(line)
+            self.act_until_player_turn()
         except holdem.MoveNotAllowed:
             self.stdout.write('move not allowed: {}\n'.format(line))
         except DealRequired:
             self.stdout.write('no move is currently allowed. try "deal".\n')
         except InvalidMove:
             self.stdout.write('unknown move: {}\n'.format(line))
-        else:
-            self.act_until_player_turn()
