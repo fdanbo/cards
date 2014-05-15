@@ -13,21 +13,22 @@ def main():
 def test_split3():
     hands_played = 0
     interpreter = HoldEmInterpreter()
-    signal = [True]
-    winnercount = [0]
+    signal = True
+    winnercount = 0
 
     # keep going until we have a 3-way split pot
     def callback(event, index=None, amount=None):
+        nonlocal signal, winnercount
         interpreter.holdem_callback(event, index, amount)
         if event == 'showdown':
-            winnercount[0] = 0
+            winnercount = 0
         elif event == 'win':
-            winnercount[0] += 1
-            if winnercount[0] > 2:
-                signal[0] = False
+            winnercount += 1
+            if winnercount > 2:
+                signal = False
 
     interpreter.holdem.callback = callback
-    while signal[0]:
+    while signal:
         interpreter.onecmd('deal')
         while not interpreter.holdem.winners:
             interpreter.onecmd('call')
@@ -45,20 +46,21 @@ def test_split3():
 def test_straight_flush():
     hands_played = 0
     interpreter = HoldEmInterpreter()
-    signal = [True]
+    signal = True
 
     # keep going until we see a straight flush
     def callback(event, index=None, amount=None):
+        nonlocal signal
         interpreter.holdem_callback(event, index, amount)
         if event == 'showdown':
             for ps in interpreter.holdem.players:
                 if not ps.folded:
                     if ((get_7_card_ranking(ps.hand).ranking ==
                          Ranking.straight_flush)):
-                        signal[0] = False
+                        signal = False
 
     interpreter.holdem.callback = callback
-    while signal[0]:
+    while signal:
         interpreter.onecmd('deal')
         while not interpreter.holdem.winners:
             interpreter.onecmd('call')

@@ -39,7 +39,7 @@ class InteractiveTest(unittest.TestCase):
         interpreter.stdout = StringIO()
         interpreter.onecmd('call')
         self.assertEqual(interpreter.stdout.getvalue(),
-                         'no move is currently allowed. try "deal".\n')
+                         'no hand is currently being played; try "deal".\n')
 
         interpreter.stdout = old_stdout
         interpreter.onecmd('deal')
@@ -49,13 +49,13 @@ class InteractiveTest(unittest.TestCase):
         interpreter.stdout = StringIO()
         interpreter.onecmd('check')
         self.assertEqual(interpreter.stdout.getvalue(),
-                         'move not allowed: check\n')
+                         'that move is not currently allowed.\n')
 
         # completely bogus commands
         interpreter.stdout = StringIO()
         interpreter.onecmd('foobar')
         self.assertEqual(interpreter.stdout.getvalue(),
-                         'unknown move: foobar\n')
+                         '*** Unknown syntax: foobar\n')
 
         # empty line should do nothing
         interpreter.stdout = StringIO()

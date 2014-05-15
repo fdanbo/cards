@@ -53,6 +53,9 @@ class HoldEm:
 
     def putmoneyin(self, amount,
                    is_small_blind=False, is_big_blind=False):
+        if self.next_to_act is None:
+            return MoveNotAllowed
+
         # bet has to be at least amount owed
         ps = self.players[self.next_to_act]
         amount_owed = (self.total_bet_this_round - ps.bet_this_round)
@@ -82,11 +85,15 @@ class HoldEm:
         self.on_turn_completed()
 
     def get_amount_owed(self):
+        if self.next_to_act is None:
+            raise MoveNotAllowed
         ps = self.players[self.next_to_act]
         amount_owed = (self.total_bet_this_round - ps.bet_this_round)
         return amount_owed
 
     def fold(self):
+        if self.next_to_act is None:
+            raise MoveNotAllowed
         ps = self.players[self.next_to_act]
         ps.folded = True
         self.callback('fold', self.next_to_act)
