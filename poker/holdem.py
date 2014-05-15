@@ -109,8 +109,6 @@ class HoldEm:
             amount_owed = (self.total_bet_this_round -
                            self.players[n].bet_this_round)
             if not self.playing_blinds:
-                print('calling next_to_act callback {} {}'.
-                      format(n, amount_owed))
                 self.callback('next_to_act', n, amount_owed)
         elif (len(self.upcards) == 0 and
               self.players[n] == self.get_player_bb() and
@@ -196,8 +194,6 @@ class HoldEm:
                 self.callback('river')
 
             if not self.playing_blinds:
-                print('calling next_to_act callback {} {}'.
-                      format(self.next_to_act, 0))
                 self.callback('next_to_act', self.next_to_act, 0)
 
     def get_player_bb(self):
@@ -241,6 +237,4 @@ class HoldEm:
         self.putmoneyin(self.small_blind, is_small_blind=True)
         self.putmoneyin(self.big_blind, is_big_blind=True)
         self.playing_blinds = False
-        print('calling next_to_act callback {} {}'.format(self.next_to_act,
-                                                          self.big_blind))
         self.callback('next_to_act', self.next_to_act, self.big_blind)
