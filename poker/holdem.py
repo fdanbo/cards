@@ -207,6 +207,9 @@ class HoldEm:
     def get_player(self, index):
         return self.players[index]
 
+    def count_unfolded(self):
+        return sum([1 for p in self.players if not p.folded])
+
     def deal(self, deck=None):
         self.deck = deck or cards.Deck()
 
